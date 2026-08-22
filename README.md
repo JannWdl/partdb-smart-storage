@@ -32,6 +32,7 @@ Raspberry Pi OS 64-bit
 Auf einem frischen Raspberry Pi:
 
 ```bash
+sudo apt-get install git -y 
 git clone https://github.com/JannWdl/partdb-smart-storage.git
 cd partdb-smart-storage
 sudo ./scripts/install.sh
