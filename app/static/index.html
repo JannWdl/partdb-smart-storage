@@ -43,10 +43,13 @@
       </section>
 
       <section>
-        <h2>Layout</h2>
-        <div id="layoutEditor"></div>
-        <button id="addCabinetBtn">Magazin hinzufuegen</button>
-        <button id="saveLayoutBtn">Layout speichern</button>
+        <h2>Setup-Assistent</h2>
+        <div class="wizard-tabs">
+          <button class="tab active" data-step="arrangement">Anordnung</button>
+          <button class="tab" data-step="leds">LEDs</button>
+          <button class="tab" data-step="review">Test</button>
+        </div>
+        <div id="setupGuide"></div>
       </section>
     </aside>
   </main>
@@ -55,4 +58,3 @@
   <script src="/static/app.js"></script>
 </body>
 </html>
-

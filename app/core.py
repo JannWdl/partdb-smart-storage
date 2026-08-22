@@ -9,6 +9,8 @@ DEFAULT_LAYOUT = {
             "columns": 4,
             "start_led": 0,
             "leds_per_slot": 4,
+            "slot_width_mm": 55,
+            "slot_height_mm": 38,
             "serpentine": False,
             "slot_prefix": "Fach",
         },
@@ -19,6 +21,8 @@ DEFAULT_LAYOUT = {
             "columns": 1,
             "start_led": 80,
             "leds_per_slot": 16,
+            "slot_width_mm": 220,
+            "slot_height_mm": 55,
             "serpentine": False,
             "slot_prefix": "Fach",
         },
@@ -67,8 +71,9 @@ def computed_slots(layout):
                         "led_start": led_start,
                         "led_stop": led_start + leds_per_slot,
                         "leds": list(range(led_start, led_start + leds_per_slot)),
+                        "slot_width_mm": int(cabinet.get("slot_width_mm", 0) or 0),
+                        "slot_height_mm": int(cabinet.get("slot_height_mm", 0) or 0),
                     }
                 )
                 global_index += 1
     return slots
-

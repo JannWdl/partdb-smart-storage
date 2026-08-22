@@ -282,6 +282,18 @@ def api_locate_slot(slot_id):
     return jsonify({"slot": slot, "wled": result})
 
 
+@app.post("/api/wled/range")
+def api_locate_range():
+    data = request.get_json(force=True)
+    start = int(data.get("start", -1))
+    stop = int(data.get("stop", -1))
+    mode = data.get("mode", "test")
+    if start < 0 or stop <= start:
+        return jsonify({"error": "Gueltiger LED-Start und LED-Stop sind erforderlich."}), 400
+    result = call_wled(wled_state_for_slot({"led_start": start, "led_stop": stop}, mode))
+    return jsonify({"led_start": start, "led_stop": stop, "wled": result})
+
+
 @app.post("/api/wled/off")
 def api_wled_off():
     return jsonify(call_wled({"on": False}))

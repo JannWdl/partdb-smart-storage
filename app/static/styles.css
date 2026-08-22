@@ -34,6 +34,7 @@ header {
 h1, h2, p { margin: 0; }
 h1 { font-size: 22px; }
 h2 { font-size: 16px; margin-bottom: 10px; }
+h3 { margin: 0 0 8px; font-size: 14px; }
 p, .meta { color: var(--muted); font-size: 13px; line-height: 1.35; }
 
 main {
@@ -69,6 +70,11 @@ button, input, select, textarea {
 button {
   cursor: pointer;
   font-weight: 750;
+}
+
+button.primary {
+  background: #3a300f;
+  color: var(--accent);
 }
 
 textarea {
@@ -155,6 +161,75 @@ textarea {
   width: 100%;
 }
 
+.wizard-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.wizard-tabs button {
+  min-height: 36px;
+  padding: 7px;
+  color: var(--muted);
+}
+
+.wizard-tabs button.active {
+  color: var(--accent);
+  border-color: #6f5a1e;
+  background: #2c271b;
+}
+
+.setup-help {
+  margin-bottom: 10px;
+}
+
+.wizard-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.checkline {
+  display: flex !important;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+.checkline input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.setup-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.setup-summary span {
+  color: var(--muted);
+}
+
+.setup-preview {
+  display: grid;
+  gap: 12px;
+  max-height: 440px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.slot.mini {
+  min-height: 54px;
+  padding: 8px;
+  font-size: 13px;
+}
+
 #toast {
   position: fixed;
   left: 50%;
@@ -181,5 +256,5 @@ textarea {
 @media (max-width: 620px) {
   header, main { padding: 12px; }
   .toolbar, .form-grid, .assignment-row { grid-template-columns: 1fr; }
+  .layout-card .fields, .wizard-actions { grid-template-columns: 1fr; }
 }
-

@@ -116,6 +116,15 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/migrate-partdb.sh
 ```
 
+Nur die Smart-Storage-Oberfläche nach lokalen Änderungen neu bauen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/reload-app.sh
+```
+
+Das ist der schnellste Weg zum Testen auf einem bereits installierten Raspberry Pi. Dabei wird kein neues Raspberry-Pi-Image erstellt und kein vollständiges Update ausgeführt.
+
 Backup:
 
 ```bash
