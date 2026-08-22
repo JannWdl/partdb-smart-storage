@@ -116,6 +116,14 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/migrate-partdb.sh
 ```
 
+Part-DB-Dateirechte reparieren, falls Part-DB mit einem Cache-/Permission-Fehler startet:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/fix-partdb-permissions.sh
+sudo docker compose restart partdb
+```
+
 Nur die Smart-Storage-Oberfläche nach lokalen Änderungen neu bauen:
 
 ```bash
