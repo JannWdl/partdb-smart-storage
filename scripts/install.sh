@@ -24,7 +24,6 @@ install -d -m 0755 "$APP_DIR"
 rsync -a --delete \
   --exclude data \
   --exclude backups \
-  --exclude .git \
   "$REPO_DIR/" "$APP_DIR/"
 
 cd "$APP_DIR"

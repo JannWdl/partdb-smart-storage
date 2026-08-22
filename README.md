@@ -109,6 +109,8 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/update.sh
 ```
 
+Wenn das Projekt aus Git installiert wurde, holt `update.sh` automatisch den aktuellen Stand von GitHub. Bestehende Daten unter `data/`, Backups und `.env` bleiben erhalten.
+
 Part-DB-Datenbankschema manuell aktualisieren:
 
 ```bash
