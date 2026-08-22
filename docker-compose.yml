@@ -1,0 +1,37 @@
+services:
+  partdb:
+    image: jbtronics/part-db1:latest
+    container_name: partdb
+    restart: unless-stopped
+    ports:
+      - "${PARTDB_PORT:-8080}:80"
+    environment:
+      APP_ENV: docker
+      APP_SECRET: ${APP_SECRET:-change-me-with-scripts/generate-secret.sh}
+      DEFAULT_URI: ${PARTDB_PUBLIC_URL:-http://partdb.local:8080}
+      DATABASE_URL: sqlite:///%kernel.project_dir%/var/db/app.db
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ./data/partdb/uploads:/var/www/html/uploads
+      - ./data/partdb/public_media:/var/www/html/public/media
+      - ./data/partdb/db:/var/www/html/var/db
+
+  smart-storage:
+    build: ./app
+    container_name: partdb-smart-storage
+    restart: unless-stopped
+    depends_on:
+      - partdb
+    ports:
+      - "${APP_PORT:-8090}:8090"
+    environment:
+      DATA_DIR: /data
+      PARTDB_INTERNAL_URL: ${PARTDB_INTERNAL_URL:-http://partdb:80}
+      PARTDB_PUBLIC_URL: ${PARTDB_PUBLIC_URL:-http://partdb.local:8080}
+      PARTDB_API_TOKEN: ${PARTDB_API_TOKEN:-}
+      WLED_BASE_URL: ${WLED_BASE_URL:-http://192.168.178.220}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - ./data/smart-storage:/data
+      - ./config:/config:ro
+

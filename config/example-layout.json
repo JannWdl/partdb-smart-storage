@@ -1,0 +1,27 @@
+{
+  "name": "Beispiel Kleinteilemagazin 4x5 plus grosses Fach",
+  "wled_segment_mode": "single",
+  "cabinets": [
+    {
+      "id": "main",
+      "name": "Hauptmagazin",
+      "rows": 5,
+      "columns": 4,
+      "start_led": 0,
+      "leds_per_slot": 4,
+      "serpentine": false,
+      "slot_prefix": "Fach"
+    },
+    {
+      "id": "bottom",
+      "name": "Grosses Fach unten",
+      "rows": 1,
+      "columns": 1,
+      "start_led": 80,
+      "leds_per_slot": 16,
+      "serpentine": false,
+      "slot_prefix": "Fach"
+    }
+  ]
+}
+

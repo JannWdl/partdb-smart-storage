@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Part-DB Smart Storage</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Part-DB Smart Storage</h1>
+      <p id="health">Verbinde...</p>
+    </div>
+    <button id="offBtn" title="LEDs ausschalten">Aus</button>
+  </header>
+
+  <main>
+    <section class="workspace">
+      <div class="toolbar">
+        <input id="findInput" placeholder="Teil suchen, z.B. 10k Widerstand">
+        <button id="findBtn">Suchen & leuchten</button>
+      </div>
+      <div id="magazines"></div>
+    </section>
+
+    <aside>
+      <section>
+        <h2>Teil zuordnen</h2>
+        <div class="form-grid">
+          <input id="partSearch" placeholder="Part-DB durchsuchen">
+          <button id="partSearchBtn">Suchen</button>
+        </div>
+        <select id="partSelect"></select>
+        <select id="slotSelect"></select>
+        <textarea id="notes" placeholder="Notiz, Barcode, Synonym"></textarea>
+        <button id="assignBtn">Speichern & testen</button>
+      </section>
+
+      <section>
+        <h2>Zuordnungen</h2>
+        <div id="assignments"></div>
+      </section>
+
+      <section>
+        <h2>Layout</h2>
+        <div id="layoutEditor"></div>
+        <button id="addCabinetBtn">Magazin hinzufuegen</button>
+        <button id="saveLayoutBtn">Layout speichern</button>
+      </section>
+    </aside>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
