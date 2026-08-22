@@ -2,8 +2,6 @@
 
 Reproduzierbares Raspberry-Pi-Projekt fuer Part-DB, WLED und ein visuelles Kleinteilemagazin.
 
-Das Projekt entstand aus einer bestehenden Referenzinstallation auf Proxmox VM `120` (`partdb-wled`): Part-DB lief dort als Docker-Container auf Port `8080`, eine kleine Flask/WLED-Bridge auf Port `8090`, WLED war unter `192.168.178.220` erreichbar. Diese VM wurde nur gelesen und nicht veraendert.
-
 ## Funktionen
 
 - Installiert Part-DB per Docker Compose auf Raspberry Pi OS 64-bit.
@@ -74,7 +72,7 @@ docker compose up -d
 
 ## Magazinlayout
 
-Das Standardlayout entspricht der Referenzidee:
+Das Standardlayout ist fuer ein typisches Kleinteilemagazin vorkonfiguriert:
 
 - 5 Reihen
 - 4 Spalten
@@ -141,21 +139,3 @@ Das Uninstall-Skript stoppt und entfernt den systemd-Dienst, loescht aber die Da
 - Vor Updates immer ein Backup erstellen. Das Update-Skript macht das automatisch.
 - WLED sollte im gleichen vertrauenswuerdigen LAN bleiben.
 - Fuer produktive Part-DB-Nutzung regelmaessig `data/partdb` sichern.
-
-## Referenzsystem
-
-Gelesene Eckdaten der bestehenden Proxmox-Installation:
-
-- Proxmox Host: `192.168.178.182`
-- VM ID: `120`
-- VM Name: `partdb-wled`
-- VM IP: `192.168.178.221`
-- OS: Debian GNU/Linux 13
-- Compose-Datei: `/opt/partdb-wled/docker-compose.yml`
-- Part-DB Image: `jbtronics/part-db1:latest`
-- Part-DB Port: `8080`
-- WLED-Bridge Port: `8090`
-- WLED Ziel: `http://192.168.178.220`
-
-Hinweis: Die Anfrage nannte CT/LXC `120`; auf dem Host ist `120` tatsaechlich eine QEMU-VM.
-
