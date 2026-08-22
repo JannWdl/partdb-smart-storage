@@ -11,6 +11,8 @@
       "leds_per_slot": 4,
       "slot_width_mm": 55,
       "slot_height_mm": 38,
+      "x": 24,
+      "y": 24,
       "serpentine": false,
       "slot_prefix": "Fach"
     },
@@ -23,6 +25,8 @@
       "leds_per_slot": 16,
       "slot_width_mm": 220,
       "slot_height_mm": 55,
+      "x": 24,
+      "y": 270,
       "serpentine": false,
       "slot_prefix": "Fach"
     }

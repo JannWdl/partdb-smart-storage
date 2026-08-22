@@ -184,6 +184,76 @@ textarea {
   margin-bottom: 10px;
 }
 
+.visual-board {
+  position: relative;
+  height: 430px;
+  overflow: hidden;
+  border: 1px solid #343d47;
+  border-radius: 8px;
+  background:
+    linear-gradient(#242a32 1px, transparent 1px),
+    linear-gradient(90deg, #242a32 1px, transparent 1px),
+    #15191f;
+  background-size: 24px 24px;
+  touch-action: none;
+}
+
+.design-block {
+  position: absolute;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 4px;
+  min-height: 58px;
+  padding: 8px;
+  text-align: left;
+  color: var(--text);
+  border-color: #50606f;
+  background: rgba(36, 42, 50, .94);
+  box-shadow: 0 10px 22px rgba(0,0,0,.22);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.design-block:active {
+  cursor: grabbing;
+}
+
+.design-block.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 208, 90, .22), 0 12px 26px rgba(0,0,0,.3);
+}
+
+.design-block span {
+  font-weight: 800;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.design-block small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.design-block i {
+  display: grid;
+  gap: 3px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.design-block i b {
+  min-height: 10px;
+  border: 1px solid rgba(255, 208, 90, .42);
+  border-radius: 4px;
+  background: rgba(255, 208, 90, .08);
+}
+
+.inspector {
+  margin-top: 12px;
+}
+
 .wizard-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

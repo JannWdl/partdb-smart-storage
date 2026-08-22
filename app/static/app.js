@@ -1,4 +1,4 @@
-let state = { layout: null, draftLayout: null, slots: [], previewSlots: [], assignments: [], parts: [], setupStep: "arrangement" };
+let state = { layout: null, draftLayout: null, slots: [], previewSlots: [], assignments: [], parts: [], setupStep: "arrangement", selectedCabinetId: null, drag: null };
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,6 +25,8 @@ async function loadAll() {
   const layout = await api("/api/layout");
   state.layout = layout.layout;
   state.draftLayout = JSON.parse(JSON.stringify(layout.layout));
+  normalizeCabinetPositions(state.draftLayout);
+  state.selectedCabinetId = state.selectedCabinetId || state.draftLayout.cabinets[0]?.id || null;
   state.slots = layout.slots;
   state.previewSlots = layout.slots;
   state.assignments = await api("/api/assignments");
@@ -146,28 +148,107 @@ function renderSetupGuide() {
 }
 
 function renderArrangementStep(root) {
-  root.appendChild(helpText("Lege fest, aus welchen Magazinblöcken dein Schrank besteht. Ein Block kann ein normales Raster oder ein einzelnes großes Fach sein."));
-  state.draftLayout.cabinets.forEach((cabinet, index) => {
-    const card = document.createElement("div");
-    card.className = "layout-card";
-    card.innerHTML = `
-      <div class="fields">
-        <label>Name <input data-draft-i="${index}" data-k="name" value="${cabinet.name}"></label>
-        <label>Kurz-ID <input data-draft-i="${index}" data-k="id" value="${cabinet.id}"></label>
-        <label>Reihen <input type="number" min="1" data-draft-i="${index}" data-k="rows" value="${cabinet.rows}"></label>
-        <label>Spalten <input type="number" min="1" data-draft-i="${index}" data-k="columns" value="${cabinet.columns}"></label>
-        <label>Fachbreite mm <input type="number" min="0" data-draft-i="${index}" data-k="slot_width_mm" value="${cabinet.slot_width_mm || 0}"></label>
-        <label>Fachhöhe mm <input type="number" min="0" data-draft-i="${index}" data-k="slot_height_mm" value="${cabinet.slot_height_mm || 0}"></label>
-      </div>
-      <div class="wizard-actions">
-        <button data-remove-cabinet="${index}">Entfernen</button>
-      </div>
-    `;
-    root.appendChild(card);
-  });
-  root.appendChild(actionButton("Magazinblock hinzufügen", addCabinet));
+  root.appendChild(helpText("Ziehe Magazinblöcke auf der Fläche an die richtige Position. Klicke einen Block an, um Reihen, Spalten und Fachgröße zu ändern."));
+  root.appendChild(renderVisualDesigner());
+  root.appendChild(renderSelectedCabinetPanel());
+  const quick = document.createElement("div");
+  quick.className = "wizard-actions";
+  quick.appendChild(actionButton("Raster hinzufügen", () => addCabinet("grid")));
+  quick.appendChild(actionButton("Großes Fach hinzufügen", () => addCabinet("large")));
+  root.appendChild(quick);
   root.appendChild(navButtons(null, "Weiter: LEDs"));
   bindDraftInputs();
+}
+
+function normalizeCabinetPositions(layout) {
+  layout.cabinets.forEach((cabinet, index) => {
+    if (cabinet.x == null) cabinet.x = 24 + (index % 2) * 180;
+    if (cabinet.y == null) cabinet.y = 24 + Math.floor(index / 2) * 180;
+    if (!cabinet.slot_width_mm) cabinet.slot_width_mm = cabinet.columns === 1 ? 220 : 55;
+    if (!cabinet.slot_height_mm) cabinet.slot_height_mm = cabinet.rows === 1 ? 55 : 38;
+  });
+}
+
+function cabinetPixelSize(cabinet) {
+  const width = Math.max(88, Math.min(340, Number(cabinet.columns) * Math.max(28, Number(cabinet.slot_width_mm || 55) * 0.55)));
+  const height = Math.max(58, Math.min(260, Number(cabinet.rows) * Math.max(28, Number(cabinet.slot_height_mm || 38) * 0.7)));
+  return { width, height };
+}
+
+function renderVisualDesigner() {
+  normalizeCabinetPositions(state.draftLayout);
+  const board = document.createElement("div");
+  board.className = "visual-board";
+  for (const cabinet of state.draftLayout.cabinets) {
+    const index = state.draftLayout.cabinets.indexOf(cabinet);
+    const size = cabinetPixelSize(cabinet);
+    const block = document.createElement("button");
+    block.type = "button";
+    block.className = `design-block${cabinet.id === state.selectedCabinetId ? " selected" : ""}`;
+    block.style.left = `${Number(cabinet.x || 0)}px`;
+    block.style.top = `${Number(cabinet.y || 0)}px`;
+    block.style.width = `${size.width}px`;
+    block.style.height = `${size.height}px`;
+    block.dataset.cabinetId = cabinet.id;
+    block.innerHTML = `
+      <span>${cabinet.name}</span>
+      <small>${cabinet.rows} x ${cabinet.columns}</small>
+      <i style="grid-template-columns:repeat(${cabinet.columns},1fr)">${Array.from({ length: Number(cabinet.rows) * Number(cabinet.columns) }).map(() => "<b></b>").join("")}</i>
+    `;
+    block.onpointerdown = (event) => startCabinetDrag(event, index, block, board);
+    board.appendChild(block);
+  }
+  return board;
+}
+
+function startCabinetDrag(event, index, block, board) {
+  event.preventDefault();
+  const cabinet = state.draftLayout.cabinets[index];
+  state.selectedCabinetId = cabinet.id;
+  document.querySelectorAll(".design-block").forEach((item) => item.classList.toggle("selected", item === block));
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const originX = Number(cabinet.x || 0);
+  const originY = Number(cabinet.y || 0);
+  const size = cabinetPixelSize(cabinet);
+  block.setPointerCapture(event.pointerId);
+  block.onpointermove = (moveEvent) => {
+    const maxX = Math.max(0, board.clientWidth - size.width - 6);
+    const maxY = Math.max(0, board.clientHeight - size.height - 6);
+    cabinet.x = Math.round(Math.min(maxX, Math.max(0, originX + moveEvent.clientX - startX)));
+    cabinet.y = Math.round(Math.min(maxY, Math.max(0, originY + moveEvent.clientY - startY)));
+    block.style.left = `${cabinet.x}px`;
+    block.style.top = `${cabinet.y}px`;
+  };
+  block.onpointerup = () => {
+    block.onpointermove = null;
+    block.onpointerup = null;
+    renderSetupGuide();
+  };
+}
+
+function renderSelectedCabinetPanel() {
+  const index = Math.max(0, state.draftLayout.cabinets.findIndex((cabinet) => cabinet.id === state.selectedCabinetId));
+  const cabinet = state.draftLayout.cabinets[index];
+  const card = document.createElement("div");
+  card.className = "layout-card inspector";
+  card.innerHTML = `
+    <h3>${cabinet.name}</h3>
+    <div class="fields">
+      <label>Name <input data-draft-i="${index}" data-k="name" value="${cabinet.name}"></label>
+      <label>Kurz-ID <input data-draft-i="${index}" data-k="id" value="${cabinet.id}"></label>
+      <label>Reihen <input type="number" min="1" data-draft-i="${index}" data-k="rows" value="${cabinet.rows}"></label>
+      <label>Spalten <input type="number" min="1" data-draft-i="${index}" data-k="columns" value="${cabinet.columns}"></label>
+      <label>Fachbreite mm <input type="number" min="0" data-draft-i="${index}" data-k="slot_width_mm" value="${cabinet.slot_width_mm || 0}"></label>
+      <label>Fachhöhe mm <input type="number" min="0" data-draft-i="${index}" data-k="slot_height_mm" value="${cabinet.slot_height_mm || 0}"></label>
+      <label>X <input type="number" min="0" data-draft-i="${index}" data-k="x" value="${cabinet.x || 0}"></label>
+      <label>Y <input type="number" min="0" data-draft-i="${index}" data-k="y" value="${cabinet.y || 0}"></label>
+    </div>
+    <div class="wizard-actions">
+      <button data-remove-cabinet="${index}">Entfernen</button>
+    </div>
+  `;
+  return card;
 }
 
 function renderLedStep(root) {
@@ -271,9 +352,12 @@ function updateDraftFromInputs() {
     const cabinet = state.draftLayout.cabinets[Number(input.dataset.draftI)];
     const key = input.dataset.k;
     if (input.type === "checkbox") cabinet[key] = input.checked;
-    else if (["rows", "columns", "start_led", "leds_per_slot", "slot_width_mm", "slot_height_mm"].includes(key)) cabinet[key] = Number(input.value);
-    else if (key === "id") cabinet[key] = slug(input.value);
-    else cabinet[key] = input.value.trim();
+    else if (["rows", "columns", "start_led", "leds_per_slot", "slot_width_mm", "slot_height_mm", "x", "y"].includes(key)) cabinet[key] = Number(input.value);
+    else if (key === "id") {
+      const oldId = cabinet.id;
+      cabinet[key] = slug(input.value);
+      if (state.selectedCabinetId === oldId) state.selectedCabinetId = cabinet[key];
+    } else cabinet[key] = input.value.trim();
   });
   state.previewSlots = computePreviewSlots(state.draftLayout);
 }
@@ -298,20 +382,29 @@ function previousSetupStep() {
   renderSetupGuide();
 }
 
-function addCabinet() {
+function addCabinet(kind = "grid") {
   updateDraftFromInputs();
-  state.draftLayout.cabinets.push({
-    id: `magazin-${state.draftLayout.cabinets.length + 1}`,
-    name: `Magazin ${state.draftLayout.cabinets.length + 1}`,
-    rows: 3,
-    columns: 4,
-    start_led: state.previewSlots.reduce((max, slot) => Math.max(max, slot.led_stop), 0),
-    leds_per_slot: 4,
-    slot_width_mm: 55,
-    slot_height_mm: 38,
+  const next = state.draftLayout.cabinets.length + 1;
+  const isLarge = kind === "large";
+  const startLed = state.previewSlots.reduce((max, slot) => Math.max(max, slot.led_stop), 0);
+  const cabinet = {
+    id: isLarge ? `grossfach-${next}` : `magazin-${next}`,
+    name: isLarge ? `Großes Fach ${next}` : `Magazin ${next}`,
+    rows: isLarge ? 1 : 3,
+    columns: isLarge ? 1 : 4,
+    start_led: startLed,
+    leds_per_slot: isLarge ? 16 : 4,
+    slot_width_mm: isLarge ? 220 : 55,
+    slot_height_mm: isLarge ? 55 : 38,
+    x: 24 + (next % 2) * 160,
+    y: 24 + Math.floor(next / 2) * 130,
     serpentine: false,
     slot_prefix: "Fach",
+  };
+  state.draftLayout.cabinets.push({
+    ...cabinet,
   });
+  state.selectedCabinetId = cabinet.id;
   renderSetupGuide();
 }
 

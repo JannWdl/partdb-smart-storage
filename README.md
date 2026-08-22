@@ -133,7 +133,7 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/reload-app.sh
 ```
 
-Das ist der schnellste Weg zum Testen auf einem bereits installierten Raspberry Pi. Dabei wird kein neues Raspberry-Pi-Image erstellt und kein vollständiges Update ausgeführt.
+Das ist der schnellste Weg zum Testen auf einem bereits installierten Raspberry Pi. Dabei wird kein neues Raspberry-Pi-Image erstellt und kein vollständiges Update ausgeführt. Der Setup-Assistent ist grafisch: Magazinblöcke werden auf einer Arbeitsfläche verschoben, ausgewählt und anschließend gespeichert.
 
 Backup:
 
