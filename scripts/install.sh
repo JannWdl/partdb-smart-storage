@@ -41,10 +41,11 @@ systemctl enable partdb-smart-storage.service
 docker compose pull
 docker compose build
 systemctl restart partdb-smart-storage.service
+sleep 8
+./scripts/migrate-partdb.sh
 
 echo
 echo "Fertig."
 echo "Part-DB:        http://$(hostname -I | awk '{print $1}'):8080"
 echo "Smart Storage:  http://$(hostname -I | awk '{print $1}'):8090"
 echo "Konfiguration:  $APP_DIR/.env"
-

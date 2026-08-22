@@ -8,7 +8,7 @@ cd "$APP_DIR"
 docker compose pull
 docker compose build --pull
 docker compose up -d
+./scripts/migrate-partdb.sh
 docker image prune -f
 
 echo "Update abgeschlossen."
-

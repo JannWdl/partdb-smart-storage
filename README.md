@@ -109,6 +109,13 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/update.sh
 ```
 
+Part-DB-Datenbankschema manuell aktualisieren:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/migrate-partdb.sh
+```
+
 Backup:
 
 ```bash
