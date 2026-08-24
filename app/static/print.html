@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Storage Druck</title>
+  <link rel="stylesheet" href="/static/print.css">
+</head>
+<body>
+  <header class="screen-only">
+    <div>
+      <h1>Smart Storage Druck</h1>
+      <p id="subtitle">Lade Layout...</p>
+    </div>
+    <div class="toolbar">
+      <button data-mode="overview">Grid-Übersicht</button>
+      <button data-mode="labels">Einzel-Etiketten</button>
+      <button data-mode="actions">Aktionen</button>
+      <button id="printBtn" class="primary">Drucken</button>
+    </div>
+  </header>
+
+  <main id="printRoot"></main>
+
+  <script src="/static/print.js"></script>
+</body>
+</html>

@@ -71,6 +71,7 @@ async function loadAll() {
   renderAssignments();
   renderSettingsPanel();
   renderBarcodePanel();
+  renderPrintPanel();
   renderSetupGuide();
   renderSideTabs();
   checkHealth();
@@ -220,6 +221,26 @@ function renderBarcodePanel() {
   $("cameraBtn").onclick = () => startCameraScanner().catch((error) => showScanError(error.message));
   $("cameraStopBtn").onclick = stopCameraScanner;
   renderStockEvents();
+}
+
+function printUrl(mode) {
+  return `/static/print.html?mode=${encodeURIComponent(mode)}`;
+}
+
+function renderPrintPanel() {
+  const root = $("printPanel");
+  root.innerHTML = `
+    <p class="meta">Druckt Barcodes direkt aus deinem aktuellen Layout und deinen gespeicherten Zuordnungen.</p>
+    <div class="print-actions">
+      <button data-print-mode="overview" class="primary">Grid-Übersicht</button>
+      <button data-print-mode="labels">Einzel-Etiketten</button>
+      <button data-print-mode="actions">Plus / Minus / Aktionen</button>
+    </div>
+    <p class="meta">Für Etikettendrucker: Einzel-Etiketten öffnen und beim gewünschten Fach auf „Einzeln drucken“ klicken.</p>
+  `;
+  root.querySelectorAll("[data-print-mode]").forEach((button) => {
+    button.onclick = () => window.open(printUrl(button.dataset.printMode), "_blank", "noopener");
+  });
 }
 
 function showScanError(message) {

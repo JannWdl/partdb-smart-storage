@@ -26,5 +26,10 @@ Die Session läuft standardmäßig nach 30 Sekunden ab. Der Wert ist in der Ober
 
 ## Barcode-Bogen
 
-`docs/barcode-sheet.html` im Browser öffnen und über den Druckdialog als PDF speichern.
+In der Smart-Storage-Oberfläche gibt es den Tab **Drucken**.
 
+- **Grid-Übersicht** druckt dein aktuelles Magazin-Layout mit Fach-Barcodes und den Aktionscodes für Plus, Minus, Nachkauf und Abbrechen.
+- **Einzel-Etiketten** erzeugt je Fach ein eigenes Etikett für Etikettendrucker. Über **Einzeln drucken** kann genau ein Fach gedruckt werden.
+- **Plus / Minus / Aktionen** druckt nur die Aktionscodes.
+
+Die Druckseite erzeugt Code-128-Barcodes lokal im Browser und benötigt kein Internet.

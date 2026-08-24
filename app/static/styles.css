@@ -385,6 +385,16 @@ textarea {
   margin-top: 10px;
 }
 
+.print-actions {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.print-actions button {
+  width: 100%;
+}
+
 #cameraPreview {
   display: block;
   width: 100%;
