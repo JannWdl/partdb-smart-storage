@@ -47,7 +47,7 @@
     .wizard-panel strong { color: var(--text); }
     .modal { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.68); }
     .modal.open { display: flex; }
-    .modal-card { width: min(720px, 100%); max-height: min(760px, calc(100vh - 36px)); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #1a2027; box-shadow: 0 24px 80px rgba(0,0,0,.48); }
+    .modal-card { width: min(860px, 100%); max-height: min(820px, calc(100vh - 36px)); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #1a2027; box-shadow: 0 24px 80px rgba(0,0,0,.48); }
     .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-bottom: 1px solid var(--line); }
     .modal-body { display: grid; gap: 12px; padding: 14px; }
     .modal-foot { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
@@ -270,8 +270,13 @@
       return Math.max(...slots().map(slot => slot.led_stop), 1);
     }
 
+    function option(value, label, current) {
+      return `<option value="${value}" ${String(current) === String(value) ? "selected" : ""}>${label}</option>`;
+    }
+
     function renderWizard() {
       const steps = ["Verbinden", "Stripe", "Layout", "Test"];
+      const cabinet = state.cabinets.find(item => item.id === state.selected) || state.cabinets[0];
       $("wizardSteps").innerHTML = steps.map((step, index) => `<button data-step="${index}" class="${index === state.wizardStep ? "active" : ""}">${index + 1}. ${step}</button>`).join("");
       document.querySelectorAll("[data-step]").forEach(button => {
         button.onclick = () => {
@@ -280,29 +285,44 @@
         };
       });
       const panels = [
-        `<strong>WLED verbinden</strong><p>Trage zuerst die URL deines WLED-Controllers ein, zum Beispiel http://wled.local oder die IP-Adresse.</p><button id="wizardConnect" class="primary">Verbinden</button>`,
-        `<strong>Stripe-Länge setzen</strong><p>Trage ein, wie viele LEDs dieser Smart-Storage-Bereich wirklich verwenden darf. Bereiche außerhalb davon werden vom Test nicht angefasst.</p><button id="wizardAllOn" class="primary">Alle eingetragenen LEDs testen</button>`,
-        `<strong>Magazine einrichten</strong><p>Ziehe die Blöcke, stelle Reihen, Spalten, Start-LED, Stop-LED, Strip-Verlauf und Serpentine ein. Stop-LED ist exklusiv. Du kannst dieses Fenster offen lassen und dahinter arbeiten.</p><button id="wizardLayoutDone" class="primary">Layout passt</button>`,
-        `<strong>Fächer testen</strong><p>Klicke links auf einzelne Fächer oder nutze einen manuellen Bereich. Danach kannst du die Zonen anzeigen.</p><button id="wizardRange" class="primary">Bereich 0-15 testen</button>`
+        `<strong>WLED verbinden</strong><p>Trage die URL deines WLED-Controllers ein.</p><div class="fields"><label>WLED URL <input id="wizardUrl" placeholder="http://wled.local oder http://192.168.x.x" value="${$("wledUrl").value}"></label></div><button id="wizardConnect" class="primary">Verbinden</button>`,
+        `<strong>Stripe-Länge setzen</strong><p>Lege fest, wie viele LEDs dieser Smart-Storage-Bereich verwenden darf.</p><div class="fields"><label>Gesamt-LEDs <input id="wizardTotal" type="number" min="1" value="${$("totalLeds").value}"></label><label>Helligkeit <input id="wizardBrightness" type="range" min="1" max="255" value="${$("brightness").value}"></label><label>Farbe <select id="wizardColor">${Object.keys(colors).map(key => option(key, key[0].toUpperCase() + key.slice(1), $("color").value)).join("")}</select></label></div><button id="wizardAllOn" class="primary">Alle eingetragenen LEDs testen</button>`,
+        `<strong>Magazine einrichten</strong><p>Konfiguriere den ausgewählten Block direkt hier im Popup.</p><div class="fields"><label>Reihen <input id="wizardRows" type="number" min="1" value="${cabinet.rows}"></label><label>Spalten <input id="wizardColumns" type="number" min="1" value="${cabinet.columns}"></label><label>Start-LED <input id="wizardStart" type="number" min="0" value="${cabinet.start_led}"></label><label>Stop-LED <input id="wizardStop" type="number" min="1" value="${cabinetStop(cabinet)}"></label><label>LEDs/Fach <input id="wizardLeds" type="number" min="1" value="${cabinet.leds_per_slot}"></label><label>Strip-Verlauf <select id="wizardPath">${option("rows", "Reihe für Reihe", cabinet.strip_path)}${option("columns", "Spalte für Spalte", cabinet.strip_path)}</select></label><label>Serpentine <select id="wizardSerpentine">${option("false", "Aus", cabinet.serpentine)}${option("true", "An", cabinet.serpentine)}</select></label></div><button id="wizardApplyLayout" class="primary">Layout übernehmen</button>`,
+        `<strong>Fächer testen</strong><p>Teste einen Bereich oder klicke links auf einzelne Fächer.</p><div class="fields"><label>Test Start <input id="wizardTestStart" type="number" min="0" value="${$("testStart").value}"></label><label>Test Stop <input id="wizardTestStop" type="number" min="1" value="${$("testStop").value}"></label></div><button id="wizardRange" class="primary">Bereich testen</button>`
       ];
       $("wizardPanel").innerHTML = panels[state.wizardStep];
       $("wizardBack").disabled = state.wizardStep === 0;
       $("wizardNext").textContent = state.wizardStep === steps.length - 1 ? "Fertig" : "Weiter";
+      const wizardUrl = $("wizardUrl");
+      if (wizardUrl) wizardUrl.oninput = () => { $("wledUrl").value = wizardUrl.value; };
+      const wizardTotal = $("wizardTotal");
+      if (wizardTotal) wizardTotal.oninput = () => { $("totalLeds").value = Math.max(1, Number(wizardTotal.value || 1)); renderZones(); };
+      const wizardBrightness = $("wizardBrightness");
+      if (wizardBrightness) wizardBrightness.oninput = () => { $("brightness").value = wizardBrightness.value; };
+      const wizardColor = $("wizardColor");
+      if (wizardColor) wizardColor.oninput = () => { $("color").value = wizardColor.value; };
       const connect = $("wizardConnect");
       if (connect) connect.onclick = () => connectWled().catch(error => toast(`Fehler: ${error.message}`));
       const all = $("wizardAllOn");
       if (all) all.onclick = () => allOn().catch(error => toast(`Fehler: ${error.message}`));
       const reset = $("wizardReset");
       if (reset) reset.onclick = () => resetBrowserState(false);
-      const layoutDone = $("wizardLayoutDone");
-      if (layoutDone) layoutDone.onclick = () => {
+      const applyLayout = $("wizardApplyLayout");
+      if (applyLayout) applyLayout.onclick = () => {
+        cabinet.rows = Math.max(1, Number($("wizardRows").value || 1));
+        cabinet.columns = Math.max(1, Number($("wizardColumns").value || 1));
+        cabinet.start_led = Math.max(0, Number($("wizardStart").value || 0));
+        cabinet.stop_led = Math.max(cabinet.start_led + 1, Number($("wizardStop").value || cabinet.start_led + 1));
+        cabinet.leds_per_slot = Math.max(1, Number($("wizardLeds").value || Math.ceil((cabinet.stop_led - cabinet.start_led) / slotCount(cabinet))));
+        cabinet.strip_path = $("wizardPath").value;
+        cabinet.serpentine = $("wizardSerpentine").value === "true";
         state.wizardStep = 3;
-        renderWizard();
+        renderAll();
       };
       const range = $("wizardRange");
       if (range) range.onclick = () => {
-        $("testStart").value = "0";
-        $("testStop").value = "16";
+        $("testStart").value = $("wizardTestStart").value;
+        $("testStop").value = $("wizardTestStop").value;
         rangeTest().catch(error => toast(`Fehler: ${error.message}`));
       };
     }
