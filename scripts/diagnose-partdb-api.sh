@@ -12,7 +12,7 @@ if [[ -f .env ]]; then
   env_token="$(grep '^PARTDB_API_TOKEN=' .env | tail -n 1 | cut -d= -f2- || true)"
 fi
 
-echo ".env Token-Laenge: ${#env_token}"
+echo ".env Token-Länge: ${#env_token}"
 if [[ -z "$env_token" ]]; then
   echo ".env: PARTDB_API_TOKEN ist leer."
 else
@@ -51,7 +51,7 @@ finally:
     except Exception:
         pass
 
-print(f"DB Token-Laenge: {len(token)}")
+print(f"DB Token-Länge: {len(token)}")
 if not token:
     print("DB: partdb_api_token ist leer.")
     raise SystemExit(0)
@@ -73,8 +73,8 @@ PY
 echo
 echo "Hinweis:"
 echo "- HTTP 200: Token und API-Rechte sind ok."
-echo "- HTTP 401/403: In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope pruefen."
-echo "- Token-Laenge 0: Token fehlt in .env oder Smart Storage."
+echo "- HTTP 401/403: In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope prüfen."
+echo "- Token-Länge 0: Token fehlt in .env oder Smart Storage."
 echo
 echo "Automatischer Reparaturversuch:"
 echo "  sudo ./scripts/setup-partdb-admin.sh"

@@ -1,5 +1,5 @@
 {
-  "name": "Beispiel Kleinteilemagazin 4x5 plus grosses Fach",
+  "name": "Beispiel Kleinteilemagazin 4x5 plus großes Fach",
   "wled_segment_mode": "single",
   "cabinets": [
     {
@@ -19,7 +19,7 @@
     },
     {
       "id": "bottom",
-      "name": "Grosses Fach unten",
+      "name": "Großes Fach unten",
       "rows": 1,
       "columns": 1,
       "start_led": 80,

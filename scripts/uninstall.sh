@@ -16,5 +16,4 @@ rm -f /etc/systemd/system/partdb-smart-storage.service
 systemctl daemon-reload
 
 echo "Dienst entfernt. Daten liegen weiterhin in $APP_DIR."
-echo "Zum vollstaendigen Entfernen nach Kontrolle ausfuehren: sudo rm -rf $APP_DIR"
-
+echo "Zum vollständigen Entfernen nach Kontrolle ausführen: sudo rm -rf $APP_DIR"

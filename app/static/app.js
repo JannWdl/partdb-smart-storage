@@ -140,10 +140,10 @@ function renderAssignments() {
     locate.textContent = "Zeigen";
     locate.onclick = () => locateSlot(item.slot_id);
     const remove = document.createElement("button");
-    remove.textContent = "Loeschen";
+    remove.textContent = "Löschen";
     remove.onclick = async () => {
       await api(`/api/assignments/${encodeURIComponent(item.part_id)}`, { method: "DELETE" });
-      toast("Zuordnung geloescht.");
+      toast("Zuordnung gelöscht.");
       await loadAll();
     };
     row.appendChild(locate);
@@ -160,7 +160,7 @@ function renderSettingsPanel() {
       <label>Part-DB URL <input id="settingPartdbUrl" value="${cfg.partdb_url || ""}"></label>
       <label>Part-DB intern <input id="settingPartdbInternalUrl" value="${cfg.partdb_internal_url || ""}"></label>
       <label>API-Token <input id="settingPartdbToken" type="password" placeholder="${cfg.partdb_api_token_configured ? "Gesetzt - leer lassen zum Behalten" : "Kein Token gesetzt"}"></label>
-      <p class="meta token-state">${cfg.partdb_api_token_configured ? "Part-DB Token ist gesetzt." : "Part-DB Token fehlt. Bitte setup-partdb-admin.sh ausfuehren oder Token eintragen."}</p>
+      <p class="meta token-state">${cfg.partdb_api_token_configured ? "Part-DB Token ist gesetzt." : "Part-DB Token fehlt. Bitte setup-partdb-admin.sh ausführen oder Token eintragen."}</p>
       <label>WLED URL <input id="settingWledUrl" value="${cfg.wled_url || ""}"></label>
       <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
       <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
@@ -249,7 +249,7 @@ function renderBarcodePanel() {
   `;
   $("scanBtn").onclick = () => sendScan($("scanInput").value).catch((error) => showScanError(error.message));
   $("scanInput").onfocus = () => {
-    $("scanStatus").textContent = "Bereit fuer Tastatur, USB-Scanner oder Kamera.";
+    $("scanStatus").textContent = "Bereit für Tastatur, USB-Scanner oder Kamera.";
   };
   $("scanInput").onkeydown = (event) => {
     if (event.key === "Enter") {

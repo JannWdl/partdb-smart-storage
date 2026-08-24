@@ -10,7 +10,7 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 if ! grep -qi "raspberry pi\|debian\|ubuntu" /etc/os-release; then
-  echo "Hinweis: Dieses Skript ist fuer Raspberry Pi OS 64-bit/Debian gebaut."
+  echo "Hinweis: Dieses Skript ist für Raspberry Pi OS 64-bit/Debian gebaut."
 fi
 
 apt-get update

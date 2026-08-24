@@ -19,20 +19,19 @@ Das Backup-Skript packt genau diese Daten in ein Archiv unter:
 
 ## Backup automatisieren
 
-Beispiel fuer einen taeglichen Cronjob:
+Beispiel für einen täglichen Cronjob:
 
 ```cron
 15 3 * * * cd /opt/partdb-smart-storage && /opt/partdb-smart-storage/scripts/backup.sh
 ```
 
-Kopiere Backups zusaetzlich auf ein NAS, eine externe SSD oder einen anderen Rechner.
+Kopiere Backups zusätzlich auf ein NAS, eine externe SSD oder einen anderen Rechner.
 
 ## Sicherheit
 
 - Keine Portweiterleitung direkt auf Part-DB oder Smart Storage.
-- Zugriff nur im lokalen Netz oder ueber VPN.
-- `.env` nicht veroeffentlichen.
+- Zugriff nur im lokalen Netz oder über VPN.
+- `.env` nicht veröffentlichen.
 - API-Token mit minimal notwendigen Rechten verwenden.
-- Vor groesseren Aenderungen ein manuelles Backup erstellen.
-- WLED und Raspberry Pi regelmaessig aktualisieren.
-
+- Vor größeren Änderungen ein manuelles Backup erstellen.
+- WLED und Raspberry Pi regelmäßig aktualisieren.

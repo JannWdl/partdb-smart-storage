@@ -19,7 +19,7 @@ DEFAULT_LAYOUT = {
         },
         {
             "id": "bottom",
-            "name": "Grosses Fach unten",
+            "name": "Großes Fach unten",
             "rows": 1,
             "columns": 1,
             "start_led": 80,
@@ -44,9 +44,9 @@ def validate_layout(layout):
             if key not in cabinet:
                 raise ValueError(f"Magazin ohne Feld: {key}")
         if int(cabinet["rows"]) < 1 or int(cabinet["columns"]) < 1:
-            raise ValueError("Reihen und Spalten muessen groesser als 0 sein.")
+            raise ValueError("Reihen und Spalten müssen größer als 0 sein.")
         if int(cabinet["leds_per_slot"]) < 1:
-            raise ValueError("LEDs pro Fach muss groesser als 0 sein.")
+            raise ValueError("LEDs pro Fach muss größer als 0 sein.")
         strip_path = cabinet.get("strip_path", cabinet.get("wiring_order", "rows"))
         if strip_path not in ("rows", "columns"):
             raise ValueError("strip_path muss rows oder columns sein.")

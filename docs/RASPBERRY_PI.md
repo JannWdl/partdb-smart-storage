@@ -4,7 +4,7 @@ Empfohlen:
 
 - Raspberry Pi 4 oder neuer
 - Raspberry Pi OS Lite 64-bit
-- 8 GB RAM nicht erforderlich, 2 GB reichen fuer kleine Installationen
+- 8 GB RAM nicht erforderlich, 2 GB reichen für kleine Installationen
 - LAN oder stabiles WLAN
 - feste IP oder DHCP-Reservierung
 
@@ -45,7 +45,7 @@ WLED_BASE_URL=http://DEINE-WLED-IP
 
 ## Autostart
 
-Der Installer installiert einen systemd-Dienst fuer den kompletten Stack. Dieser startet beim Booten immer Part-DB und Smart Storage gemeinsam:
+Der Installer installiert einen systemd-Dienst für den kompletten Stack. Dieser startet beim Booten immer Part-DB und Smart Storage gemeinsam:
 
 ```bash
 systemctl status partdb-smart-storage
@@ -66,14 +66,14 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/ensure-autostart.sh
 ```
 
-Container pruefen:
+Container prüfen:
 
 ```bash
 cd /opt/partdb-smart-storage
 sudo docker compose ps
 ```
 
-## Part-DB API pruefen
+## Part-DB API prüfen
 
 Wenn Smart Storage bei der Teile-Suche `401`, `403` oder `502` zeigt:
 
@@ -82,13 +82,13 @@ cd /opt/partdb-smart-storage
 sudo ./scripts/diagnose-partdb-api.sh
 ```
 
-Bei `403 Forbidden` mit `@api.access_api` verweigert Part-DB den API-Zugriff. Dann in Part-DB als Admin den Benutzer beziehungsweise die Admin-Gruppe pruefen:
+Bei `403 Forbidden` mit `@api.access_api` verweigert Part-DB den API-Zugriff. Dann in Part-DB als Admin den Benutzer beziehungsweise die Admin-Gruppe prüfen:
 
 - Recht **Miscellaneous / API** erlauben
 - API-Token mit Scope **Full** oder mindestens **Edit** neu erstellen
 - Token in Smart Storage unter **Einstellungen** speichern
 
-Oder automatisch fuer den lokalen Admin reparieren:
+Oder automatisch für den lokalen Admin reparieren:
 
 ```bash
 cd /opt/partdb-smart-storage

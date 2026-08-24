@@ -49,7 +49,7 @@ Danach:
 - Smart Storage: `http://<pi-ip>:8090`
 - Part-DB Login nach Erstinstallation: `admin` / `admin`
 
-Der Installer setzt das Admin-Passwort nur bei der Erstinstallation auf `admin`. Danach verbindet er Smart Storage automatisch mit Part-DB, indem er API-Rechte fuer den Admin setzt, einen API-Token erzeugt und diesen in Smart Storage hinterlegt.
+Der Installer setzt das Admin-Passwort nur bei der Erstinstallation auf `admin`. Danach verbindet er Smart Storage automatisch mit Part-DB, indem er API-Rechte für den Admin setzt, einen API-Token erzeugt und diesen in Smart Storage hinterlegt.
 
 ## Autostart Als Service
 
@@ -57,9 +57,9 @@ Die Installation richtet einen systemd-Service ein. Dieser startet beim Raspberr
 
 - Part-DB auf Port `8080`
 - Smart Storage auf Port `8090`
-- gemeinsame Docker-Netzwerkverbindung fuer die interne Part-DB-API
+- gemeinsame Docker-Netzwerkverbindung für die interne Part-DB-API
 
-Pruefen:
+Prüfen:
 
 ```bash
 sudo systemctl status partdb-smart-storage
@@ -220,7 +220,7 @@ sudo ./scripts/reload-app.sh
 
 Das ist der schnellste Weg zum Testen auf einem bereits installierten Raspberry Pi. Dabei wird kein neues Raspberry-Pi-Image erstellt und kein vollständiges Update ausgeführt. Der Setup-Assistent ist grafisch: Magazinblöcke werden auf einer Arbeitsfläche verschoben, ausgewählt und anschließend gespeichert.
 
-Autostart fuer Part-DB und Smart Storage neu setzen:
+Autostart für Part-DB und Smart Storage neu setzen:
 
 ```bash
 cd /opt/partdb-smart-storage

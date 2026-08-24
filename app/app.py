@@ -259,7 +259,7 @@ def partdb_permission_message(status_code):
     if status_code == 401:
         return "Part-DB API-Token fehlt, ist falsch oder abgelaufen."
     if status_code == 403:
-        return "Part-DB verweigert den API-Zugriff. Token-Scope und Benutzerrecht Miscellaneous/API in Part-DB pruefen."
+        return "Part-DB verweigert den API-Zugriff. Token-Scope und Benutzerrecht Miscellaneous/API in Part-DB prüfen."
     return f"Part-DB HTTP {status_code}"
 
 
@@ -365,14 +365,14 @@ def first_part_lot(part_id):
                 lot_part = lot_part.get("@id") or lot_part.get("id")
             if str(entity_id(lot_part)) in ("", str(entity_id(part_id))):
                 return lot
-    raise RuntimeError("Kein Part-DB-Lagerlos fuer dieses Teil gefunden.")
+    raise RuntimeError("Kein Part-DB-Lagerlos für dieses Teil gefunden.")
 
 
 def lot_amount(lot):
     for key in ("amount", "instock", "instock_amount", "stock"):
         if isinstance(lot, dict) and lot.get(key) is not None:
             return float(lot[key])
-    raise RuntimeError("Part-DB-Lagerlos enthaelt keinen lesbaren Bestand.")
+    raise RuntimeError("Part-DB-Lagerlos enthält keinen lesbaren Bestand.")
 
 
 def write_partdb_stock(part_id, action, quantity=1):
@@ -756,7 +756,7 @@ def handle_action(action, code):
         record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="local")
         return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "local", **feedback("wishlist", message, slot)}
     if not cfg["partdb_stock_write_enabled"]:
-        message = "Testmodus: Bestand nicht in Part-DB geaendert."
+        message = "Testmodus: Bestand nicht in Part-DB geändert."
         record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="local")
         return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "local", **feedback("success", message, slot)}
     try:
@@ -832,7 +832,7 @@ def api_assign(data: dict = Body(...)):
     notes = str(data.get("notes", "")).strip()
     slot = slot_by_id(drawer_id)
     if not part_id or not part_name or not slot:
-        raise HTTPException(status_code=400, detail="Teil, Name und gueltiges Fach sind erforderlich.")
+        raise HTTPException(status_code=400, detail="Teil, Name und gültiges Fach sind erforderlich.")
     now = int(time.time())
     with db() as con:
         con.execute(
@@ -897,7 +897,7 @@ def api_locate_range(data: dict = Body(...)):
     stop = int(data.get("stop", -1))
     mode = data.get("mode", "test")
     if start < 0 or stop <= start:
-        raise HTTPException(status_code=400, detail="Gueltiger LED-Start und LED-Stop sind erforderlich.")
+        raise HTTPException(status_code=400, detail="Gültiger LED-Start und LED-Stop sind erforderlich.")
     result = call_wled(wled_state_for_slot({"led_start": start, "led_stop": stop}, mode))
     return {"led_start": start, "led_stop": stop, "wled": result}
 
@@ -967,7 +967,7 @@ def api_scan(data: dict = Body(...)):
         if assignment and not session.get("partdb_part_id"):
             session["partdb_part_id"] = assignment["partdb_part_id"]
             session["part_name"] = assignment["part_name"]
-        return {"ok": True, "session": save_session(session), **feedback("locate", f"{slot['label']} gewaehlt: LED {slot['led_start']}-{slot['led_stop'] - 1}.", slot)}
+        return {"ok": True, "session": save_session(session), **feedback("locate", f"{slot['label']} gewählt: LED {slot['led_start']}-{slot['led_stop'] - 1}.", slot)}
     if upper in ("ADD", "REMOVE", "WISHLIST"):
         return handle_action(upper, code)
     record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), session.get("drawer_id"), 1, code, "Unbekannter Barcode.", status="failed")

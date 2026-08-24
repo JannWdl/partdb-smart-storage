@@ -26,7 +26,7 @@ echo "Benutzer: $USERNAME"
 if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == "yes" ]]; then
   echo "Passwort: $PASSWORD"
 else
-  echo "Passwort: bleibt unveraendert"
+  echo "Passwort: bleibt unverändert"
 fi
 
 tmp_script="$(mktemp)"
@@ -38,7 +38,7 @@ if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == 
 
   if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
     echo
-    echo "Passwort konnte fuer '$USERNAME' nicht gesetzt werden."
+    echo "Passwort konnte für '$USERNAME' nicht gesetzt werden."
     echo "Vorhandene Benutzer anzeigen:"
     echo "  sudo docker compose exec --user www-data partdb php bin/console partdb:users:list"
     exit 1
@@ -176,10 +176,10 @@ echo "Login:    $USERNAME"
 if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == "yes" ]]; then
   echo "Passwort: $PASSWORD"
 else
-  echo "Passwort: unveraendert"
+  echo "Passwort: unverändert"
 fi
 echo "API:      Smart Storage Token wurde gespeichert. Teststatus: $api_status"
 if [[ "$api_status" == "401" || "$api_status" == "403" ]]; then
-  echo "Hinweis: Part-DB verweigert den API-Zugriff. In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope pruefen."
+  echo "Hinweis: Part-DB verweigert den API-Zugriff. In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope prüfen."
 fi
 echo "Part-DB:  http://$(hostname -I | awk '{print $1}'):8080"
