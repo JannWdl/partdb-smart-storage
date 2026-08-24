@@ -94,3 +94,5 @@ Oder automatisch fuer den lokalen Admin reparieren:
 cd /opt/partdb-smart-storage
 sudo ./scripts/setup-partdb-admin.sh
 ```
+
+Dieser Reparaturlauf setzt API-Rechte und Token neu, ändert aber kein bestehendes Admin-Passwort. Das Standardpasswort `admin` wird nur bei der Erstinstallation durch `install.sh` gesetzt.

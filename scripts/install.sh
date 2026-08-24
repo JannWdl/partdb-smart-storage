@@ -39,7 +39,7 @@ docker compose build
 ./scripts/ensure-autostart.sh
 sleep 8
 ./scripts/migrate-partdb.sh
-./scripts/setup-partdb-admin.sh
+PARTDB_SET_ADMIN_PASSWORD=1 ./scripts/setup-partdb-admin.sh
 
 echo
 echo "Fertig."

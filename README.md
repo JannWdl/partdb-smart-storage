@@ -45,16 +45,18 @@ Danach:
 
 - Part-DB: `http://<pi-ip>:8080`
 - Smart Storage: `http://<pi-ip>:8090`
-- Part-DB Login: `admin` / `admin`
+- Part-DB Login nach Erstinstallation: `admin` / `admin`
 
-Der Installer verbindet Smart Storage automatisch mit Part-DB, indem er einen API-Token fuer den Admin erzeugt und in Smart Storage hinterlegt.
+Der Installer setzt das Admin-Passwort nur bei der Erstinstallation auf `admin`. Danach verbindet er Smart Storage automatisch mit Part-DB, indem er API-Rechte fuer den Admin setzt, einen API-Token erzeugt und diesen in Smart Storage hinterlegt.
 
-Wenn Part-DB schon installiert ist und Admin/API-Anbindung neu gesetzt werden soll:
+Wenn Part-DB schon installiert ist und nur Admin/API-Anbindung repariert werden soll:
 
 ```bash
 cd /opt/partdb-smart-storage
 sudo ./scripts/setup-partdb-admin.sh
 ```
+
+Dieser Reparaturlauf ändert das vorhandene Admin-Passwort nicht.
 
 ## Konfiguration
 
@@ -184,6 +186,22 @@ sudo ./scripts/reload-app.sh
 ```
 
 Das ist der schnellste Weg zum Testen auf einem bereits installierten Raspberry Pi. Dabei wird kein neues Raspberry-Pi-Image erstellt und kein vollständiges Update ausgeführt. Der Setup-Assistent ist grafisch: Magazinblöcke werden auf einer Arbeitsfläche verschoben, ausgewählt und anschließend gespeichert.
+
+Autostart fuer Part-DB und Smart Storage neu setzen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/ensure-autostart.sh
+```
+
+Part-DB-API prüfen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/diagnose-partdb-api.sh
+```
+
+Ziel ist bei `.env Token HTTP-Status` und `DB Token HTTP-Status` jeweils `200`. Bei `403` fehlen in Part-DB API-Rechte; `setup-partdb-admin.sh` setzt diese automatisch neu, ohne das Admin-Passwort zu ändern.
 
 Backup:
 

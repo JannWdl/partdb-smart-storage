@@ -4,6 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/partdb-smart-storage}"
 USERNAME="${PARTDB_ADMIN_USER:-admin}"
 PASSWORD="${PARTDB_ADMIN_PASSWORD:-admin}"
+SET_PASSWORD="${PARTDB_SET_ADMIN_PASSWORD:-0}"
 
 if [[ -d "$APP_DIR" ]]; then
   cd "$APP_DIR"
@@ -22,19 +23,26 @@ fi
 echo
 echo "Part-DB Admin einrichten"
 echo "Benutzer: $USERNAME"
-echo "Passwort: $PASSWORD"
+if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == "yes" ]]; then
+  echo "Passwort: $PASSWORD"
+else
+  echo "Passwort: bleibt unveraendert"
+fi
 
 tmp_script="$(mktemp)"
 tmp_input="$(mktemp)"
 trap 'rm -f "$tmp_script" "$tmp_input"' EXIT
-printf "yes\n%s\n%s\n" "$PASSWORD" "$PASSWORD" > "$tmp_input"
 
-if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
-  echo
-  echo "Passwort konnte fuer '$USERNAME' nicht gesetzt werden."
-  echo "Vorhandene Benutzer anzeigen:"
-  echo "  sudo docker compose exec --user www-data partdb php bin/console partdb:users:list"
-  exit 1
+if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == "yes" ]]; then
+  printf "yes\n%s\n%s\n" "$PASSWORD" "$PASSWORD" > "$tmp_input"
+
+  if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
+    echo
+    echo "Passwort konnte fuer '$USERNAME' nicht gesetzt werden."
+    echo "Vorhandene Benutzer anzeigen:"
+    echo "  sudo docker compose exec --user www-data partdb php bin/console partdb:users:list"
+    exit 1
+  fi
 fi
 
 cat > "$tmp_script" <<'PHP'
@@ -165,7 +173,11 @@ api_status="$(curl -sS -o /dev/null -w "%{http_code}" \
 echo
 echo "Admin-Zugang ist bereit."
 echo "Login:    $USERNAME"
-echo "Passwort: $PASSWORD"
+if [[ "$SET_PASSWORD" == "1" || "$SET_PASSWORD" == "true" || "$SET_PASSWORD" == "yes" ]]; then
+  echo "Passwort: $PASSWORD"
+else
+  echo "Passwort: unveraendert"
+fi
 echo "API:      Smart Storage Token wurde gespeichert. Teststatus: $api_status"
 if [[ "$api_status" == "401" || "$api_status" == "403" ]]; then
   echo "Hinweis: Part-DB verweigert den API-Zugriff. In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope pruefen."
