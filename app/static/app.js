@@ -188,11 +188,20 @@ function renderSideTabs() {
       }
       state.activePanel = button.dataset.panel;
       renderSideTabs();
+      focusScanInput();
     };
   });
   document.querySelectorAll(".side-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === state.activePanel);
   });
+}
+
+function focusScanInput() {
+  if (state.activePanel !== "barcodeSection") return;
+  window.setTimeout(() => {
+    const input = $("scanInput");
+    if (input) input.focus();
+  }, 50);
 }
 
 function openSetupModal() {
@@ -213,14 +222,15 @@ function renderBarcodePanel() {
     <p class="meta">Barcode wird ausschließlich in den Einstellungen aktiviert oder deaktiviert.</p>
     <p class="meta">Codes: PART:&lt;id&gt;, DRAWER:&lt;fach-id&gt;, ADD, REMOVE, WISHLIST, CANCEL</p>
     <p class="meta">USB-Scanner funktionieren wie eine Tastatur. Deutsches Layout wird automatisch korrigiert, zum Beispiel PARTÖ123 zu PART:123.</p>
+    <p class="meta scan-enabled-state">${cfg.barcode_enabled ? "Barcode-Eingabe ist aktiv." : "Barcode ist in den Einstellungen deaktiviert. Eingabe ist möglich, Verarbeitung nicht."}</p>
     <div class="scan-context">
       <div><span>Teil</span><b>${session.part_name || session.partdb_part_id || "nicht gewählt"}</b></div>
       <div><span>Fach</span><b>${session.drawer_id || "nicht gewählt"}</b></div>
       <div><span>Modus</span><b>${cfg.partdb_stock_write_enabled ? "Part-DB schreiben" : "Testmodus lokal"}</b></div>
     </div>
     <div class="form-grid barcode-line">
-      <input id="scanInput" placeholder="Scanner-Fokus: Barcode scannen oder eintippen" ${cfg.barcode_enabled ? "" : "disabled"}>
-      <button id="scanBtn" ${cfg.barcode_enabled ? "" : "disabled"}>Senden</button>
+      <input id="scanInput" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Barcode scannen oder eintippen">
+      <button id="scanBtn">Senden</button>
     </div>
     <p class="meta">Tipp: Barcode-Tab öffnen und scannen. Das Feld muss nicht zwingend fokussiert sein, solange der Scanner am Ende Enter sendet.</p>
     <div class="stock-buttons">
@@ -238,6 +248,9 @@ function renderBarcodePanel() {
     <div id="stockEvents"></div>
   `;
   $("scanBtn").onclick = () => sendScan($("scanInput").value).catch((error) => showScanError(error.message));
+  $("scanInput").onfocus = () => {
+    $("scanStatus").textContent = "Bereit fuer Tastatur, USB-Scanner oder Kamera.";
+  };
   $("scanInput").onkeydown = (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -250,6 +263,7 @@ function renderBarcodePanel() {
     button.onclick = () => sendScan(button.dataset.scanCode).catch((error) => showScanError(error.message));
   });
   $("scanStatus").textContent = state.lastScanStatus;
+  focusScanInput();
   renderStockEvents();
 }
 

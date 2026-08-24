@@ -93,6 +93,17 @@ button, input, select, textarea {
   padding: 10px 12px;
 }
 
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+button:disabled, input:disabled, select:disabled, textarea:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 button {
   cursor: pointer;
   font-weight: 750;
@@ -388,6 +399,15 @@ textarea {
 
 .barcode-line {
   margin-top: 10px;
+}
+
+#scanInput {
+  width: 100%;
+  font-size: 16px;
+}
+
+.scan-enabled-state {
+  margin-top: 8px;
 }
 
 .scan-context {
