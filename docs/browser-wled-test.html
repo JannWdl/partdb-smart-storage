@@ -71,6 +71,7 @@
           <label>Reihen <input id="rows" type="number" min="1"></label>
           <label>Spalten <input id="columns" type="number" min="1"></label>
           <label>Start-LED <input id="start" type="number" min="0"></label>
+          <label>Stop-LED <input id="stop" type="number" min="1"></label>
           <label>LEDs/Fach <input id="leds" type="number" min="1"></label>
           <label>Breite/Fach mm <input id="width" type="number" min="1"></label>
           <label>Höhe/Fach mm <input id="height" type="number" min="1"></label>
@@ -87,11 +88,14 @@
         <div class="fields">
           <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
           <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="96"></label>
+          <label>Manuell Start <input id="manualStart" type="number" min="0" value="0"></label>
+          <label>Manuell Stop <input id="manualStop" type="number" min="1" value="16"></label>
           <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
         </div>
         <div class="actions" style="margin-top:10px">
           <button id="sendWled" class="primary">An WLED senden</button>
           <button id="allBlue">Alles blau testen</button>
+          <button id="manualRange">Bereich testen</button>
           <button id="copyPayload">Payload kopieren</button>
         </div>
         <p class="pill">Fach-Klicks und Alles blau nutzen die einfache WLED-HTTP-API. Die JSON-Vorschau ist zum Kopieren für die App gedacht.</p>
@@ -117,6 +121,12 @@
     function toast(text) { const el = $("toast"); el.textContent = text; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2400); }
     function slug(value) { return String(value || "magazin").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "magazin"; }
     function size(c) { return { width: Math.max(88, Math.min(340, c.columns * Math.max(28, c.slot_width_mm * .55))), height: Math.max(58, Math.min(260, c.rows * Math.max(28, c.slot_height_mm * .7))) }; }
+    function slotCount(c) {
+      return Math.max(1, Number(c.rows || 1) * Number(c.columns || 1));
+    }
+    function cabinetStop(c) {
+      return Number(c.stop_led || 0) || Number(c.start_led || 0) + slotCount(c) * Number(c.leds_per_slot || 1);
+    }
     function slots() {
       const out = []; let n = 1;
       for (const c of state.cabinets) {
@@ -181,13 +191,23 @@
     function fillInspector() {
       const c = state.cabinets.find(x => x.id === state.selected) || state.cabinets[0];
       ["name","id"].forEach(k => $(k).value = c[k]);
-      $("rows").value = c.rows; $("columns").value = c.columns; $("start").value = c.start_led; $("leds").value = c.leds_per_slot; $("width").value = c.slot_width_mm; $("height").value = c.slot_height_mm;
+      $("rows").value = c.rows; $("columns").value = c.columns; $("start").value = c.start_led; $("stop").value = cabinetStop(c); $("leds").value = c.leds_per_slot; $("width").value = c.slot_width_mm; $("height").value = c.slot_height_mm;
       $("path").value = c.strip_path || c.wiring_order || "rows"; $("serpentine").value = c.serpentine ? "true" : "false";
     }
     function readInspector() {
       const c = state.cabinets.find(x => x.id === state.selected); if (!c) return;
       c.name = $("name").value; c.id = slug($("id").value); state.selected = c.id;
-      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0); c.leds_per_slot = Number($("leds").value || 1); c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
+      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0); c.leds_per_slot = Number($("leds").value || 1); c.stop_led = Math.max(c.start_led + 1, Number($("stop").value || cabinetStop(c))); c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
+      c.strip_path = $("path").value; delete c.wiring_order; c.serpentine = $("serpentine").value === "true";
+      renderAll();
+    }
+    function readStopInspector() {
+      const c = state.cabinets.find(x => x.id === state.selected); if (!c) return;
+      c.name = $("name").value; c.id = slug($("id").value); state.selected = c.id;
+      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0);
+      c.stop_led = Math.max(c.start_led + 1, Number($("stop").value || c.start_led + 1));
+      c.leds_per_slot = Math.max(1, Math.ceil((c.stop_led - c.start_led) / slotCount(c)));
+      c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
       c.strip_path = $("path").value; delete c.wiring_order; c.serpentine = $("serpentine").value === "true";
       renderAll();
     }
@@ -315,6 +335,23 @@
         B:255
       }, `Alles blau bis LED ${total - 1}`);
     }
+    async function sendManualRange() {
+      const start = Math.max(0, Number($("manualStart").value || 0));
+      const stop = Math.max(start + 1, Number($("manualStop").value || start + 1));
+      await sendHttpApi({
+        T:1,
+        A:220,
+        FX:0,
+        SS:0,
+        SV:2,
+        S:start,
+        S2:stop,
+        SB:255,
+        R:255,
+        G:180,
+        B:0
+      }, `Bereich LED ${start}-${stop - 1}`);
+    }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");
       await fetch(`${url}/json/state`, {
@@ -332,12 +369,14 @@
     }
     function renderAll() { renderBoard(); fillInspector(); renderZones(); }
     ["name","id","rows","columns","start","leds","width","height","path","serpentine"].forEach(id => $(id).oninput = readInspector);
+    $("stop").oninput = readStopInspector;
     $("totalLeds").oninput = renderZones;
     $("modeDrawers").onclick = () => { state.mode = "drawers"; renderZones(); };
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
     $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
     $("sendWled").onclick = () => sendPayload(payload()).catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
     $("allBlue").onclick = () => sendAllBlue().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("manualRange").onclick = () => sendManualRange().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
     $("copyPayload").onclick = async () => { await navigator.clipboard.writeText($("payload").value); toast("Payload kopiert"); };
     renderAll();
   </script>
