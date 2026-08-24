@@ -263,6 +263,14 @@ def partdb_permission_message(status_code):
     return f"Part-DB HTTP {status_code}"
 
 
+def partdb_status_for_http(status_code):
+    if status_code in (401, 403):
+        return status_code
+    if status_code == 404:
+        return 404
+    return 502
+
+
 def partdb_get(path, timeout=12):
     response = partdb_request("GET", path, timeout=timeout)
     response.raise_for_status()
@@ -389,10 +397,12 @@ def part_url(part_id):
 def partdb_search(query):
     candidates = []
     last_error = None
+    last_status = None
     for path in partdb_search_paths(query):
         try:
             response = partdb_request("GET", path, timeout=12)
             if response.status_code >= 400:
+                last_status = response.status_code
                 last_error = partdb_permission_message(response.status_code)
                 if response.status_code in (401, 403):
                     break
@@ -406,12 +416,13 @@ def partdb_search(query):
                 return unique_parts(candidates)[:50]
         except Exception as exc:
             last_error = str(exc)
+            last_status = 502
             continue
     local = local_assignment_search(query)
     if local:
         return local
     if last_error:
-        raise HTTPException(status_code=502, detail=f"Part-DB Suche fehlgeschlagen: {last_error}")
+        raise HTTPException(status_code=partdb_status_for_http(last_status), detail=f"Part-DB Suche fehlgeschlagen: {last_error}")
     return []
 
 
