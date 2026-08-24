@@ -43,6 +43,7 @@ require '/var/www/html/vendor/autoload.php';
 
 use App\Entity\UserSystem\ApiToken;
 use App\Entity\UserSystem\ApiTokenLevel;
+use App\Entity\UserSystem\PermissionData;
 use App\Entity\UserSystem\User;
 use App\Services\UserSystem\PermissionPresetsHelper;
 
@@ -64,6 +65,8 @@ $user->setDisabled(false);
 
 $presets = $container->get(PermissionPresetsHelper::class);
 $presets->applyPreset($user, PermissionPresetsHelper::PRESET_ADMIN);
+$user->getPermissions()->setPermissionValue('api', 'access_api', PermissionData::ALLOW);
+$user->getPermissions()->setPermissionValue('api', 'manage_tokens', PermissionData::ALLOW);
 
 $token = null;
 foreach ($user->getApiTokens() as $existing) {

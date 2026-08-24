@@ -87,3 +87,10 @@ Bei `403 Forbidden` mit `@api.access_api` verweigert Part-DB den API-Zugriff. Da
 - Recht **Miscellaneous / API** erlauben
 - API-Token mit Scope **Full** oder mindestens **Edit** neu erstellen
 - Token in Smart Storage unter **Einstellungen** speichern
+
+Oder automatisch fuer den lokalen Admin reparieren:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/setup-partdb-admin.sh
+```

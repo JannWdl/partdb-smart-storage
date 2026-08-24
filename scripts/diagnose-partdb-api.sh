@@ -75,3 +75,6 @@ echo "Hinweis:"
 echo "- HTTP 200: Token und API-Rechte sind ok."
 echo "- HTTP 401/403: In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope pruefen."
 echo "- Token-Laenge 0: Token fehlt in .env oder Smart Storage."
+echo
+echo "Automatischer Reparaturversuch:"
+echo "  sudo ./scripts/setup-partdb-admin.sh"
