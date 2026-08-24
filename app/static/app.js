@@ -734,13 +734,12 @@ async function locatePreviewSlot(slot) {
 
 async function searchParts() {
   const query = $("partSearch").value.trim();
-  if (!query) return;
   const parts = await api(`/api/partdb/search?q=${encodeURIComponent(query)}`);
   state.parts = parts;
   $("partSelect").innerHTML = parts.length
-    ? parts.map((part) => `<option value="${part.id}">${part.name}</option>`).join("")
+    ? parts.map((part) => `<option value="${part.id}">${part.name} (#${part.id})</option>`).join("")
     : `<option value="">Keine Part-DB-Treffer</option>`;
-  toast(parts.length ? `${parts.length} Treffer gefunden.` : "Keine Treffer.");
+  toast(parts.length ? `${parts.length} Teil(e) geladen.` : "Keine Teile in Part-DB gefunden.");
 }
 
 async function assignSelected() {

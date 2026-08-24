@@ -41,6 +41,23 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(saved["partdb_api_token"], "abc123")
         self.assertTrue(saved["partdb_api_token_configured"])
 
+    def test_partdb_search_uses_jsonld_and_wildcard_name_filter(self):
+        backend = self.load_app_module()
+        paths = backend.partdb_search_paths("BC547")
+        self.assertEqual(paths[0], "/parts.jsonld?itemsPerPage=50&name=%25BC547%25")
+        self.assertIn("/parts.jsonld?itemsPerPage=50&name=BC547", paths)
+
+    def test_empty_partdb_search_loads_first_parts_page(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.partdb_search_paths(""), ["/parts.jsonld?itemsPerPage=50&order[name]=asc"])
+
+    def test_partdb_candidate_accepts_jsonld_id(self):
+        backend = self.load_app_module()
+        candidate = backend.part_candidate({"@id": "/api/parts/123", "name": "Widerstand", "description": "10k"})
+        self.assertEqual(candidate["id"], "123")
+        self.assertEqual(candidate["name"], "Widerstand")
+        self.assertTrue(candidate["url"].endswith("/de/part/123"))
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})

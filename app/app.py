@@ -5,6 +5,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 import uvicorn
@@ -354,35 +355,75 @@ def normalize(text):
 
 
 def part_url(part_id):
-    return f"{settings()['partdb_url']}/de/part/{part_id}"
+    return f"{settings()['partdb_url']}/de/part/{entity_id(part_id)}"
 
 
 def partdb_search(query):
     cfg = settings()
-    if not query:
-        return []
     candidates = []
-    endpoints = [
-        f"{cfg['partdb_internal_url']}/api/parts?name={requests.utils.quote(query)}",
-        f"{cfg['partdb_internal_url']}/api/parts?filter={requests.utils.quote(query)}",
-        f"{cfg['partdb_internal_url']}/de/parts/search?keyword={requests.utils.quote(query)}",
-    ]
-    for url in endpoints:
+    last_error = None
+    for path in partdb_search_paths(query):
         try:
-            response = requests.get(url, headers=auth_headers(), timeout=3)
+            response = requests.get(partdb_api_url(path), headers=auth_headers(), timeout=3)
             if response.status_code >= 400:
+                last_error = f"Part-DB HTTP {response.status_code}"
                 continue
             payload = response.json() if "json" in response.headers.get("content-type", "") else {}
-            raw_items = payload.get("hydra:member") or payload.get("items") or payload.get("data") or []
-            for item in raw_items:
-                part_id = item.get("id") or item.get("@id", "").rstrip("/").split("/")[-1]
-                name = item.get("name") or item.get("full_name") or f"Teil {part_id}"
-                candidates.append({"id": str(part_id), "name": name, "description": item.get("description", ""), "url": part_url(part_id)})
+            for item in collection_items(payload):
+                candidate = part_candidate(item)
+                if candidate:
+                    candidates.append(candidate)
             if candidates:
-                return candidates[:30]
-        except Exception:
+                return unique_parts(candidates)[:50]
+        except Exception as exc:
+            last_error = str(exc)
             continue
-    return local_assignment_search(query)
+    local = local_assignment_search(query)
+    if local:
+        return local
+    if last_error:
+        raise HTTPException(status_code=502, detail=f"Part-DB Suche fehlgeschlagen: {last_error}")
+    return []
+
+
+def partdb_search_paths(query):
+    text = str(query or "").strip()
+    if not text:
+        return ["/parts.jsonld?itemsPerPage=50&order[name]=asc"]
+    exact = quote(text)
+    wildcard = quote(f"%{text}%")
+    return [
+        f"/parts.jsonld?itemsPerPage=50&name={wildcard}",
+        f"/parts.jsonld?itemsPerPage=50&name={exact}",
+        f"/parts?itemsPerPage=50&name={wildcard}",
+        f"/parts?itemsPerPage=50&name={exact}",
+    ]
+
+
+def part_candidate(item):
+    if not isinstance(item, dict):
+        return None
+    part_id = item.get("id") or entity_id(item.get("@id"))
+    if not part_id:
+        return None
+    name = item.get("name") or item.get("full_name") or item.get("fullName") or f"Teil {part_id}"
+    if isinstance(name, dict):
+        name = name.get("text") or name.get("value") or next(iter(name.values()), f"Teil {part_id}")
+    description = item.get("description") or item.get("comment") or ""
+    if isinstance(description, dict):
+        description = description.get("text") or description.get("value") or ""
+    return {"id": str(entity_id(part_id)), "name": str(name), "description": str(description), "url": part_url(part_id)}
+
+
+def unique_parts(items):
+    seen = set()
+    result = []
+    for item in items:
+        if item["id"] in seen:
+            continue
+        seen.add(item["id"])
+        result.append(item)
+    return result
 
 
 def local_assignment_search(query):
