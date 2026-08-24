@@ -340,6 +340,37 @@ def wled_segments_for_zones(zones, brightness=180):
     } for index, zone in enumerate(zones)]
 
 
+def wled_pixel_payload_for_zones(zones, brightness=180):
+    if not zones:
+        return {"on": True, "bri": int(brightness), "seg": []}
+    total_stop = max(zone["led_stop"] for zone in zones)
+    pixels = []
+    colors = {}
+    for zone in zones:
+        for led in range(zone["led_start"], zone["led_stop"]):
+            colors[led] = zone["color"]
+    for led in range(total_stop):
+        pixels.extend([led, colors.get(led, [0, 0, 0])])
+    return {
+        "on": True,
+        "bri": max(1, min(255, int(brightness))),
+        "transition": 0,
+        "mainseg": 0,
+        "seg": wled_clear_segments() + [{
+            "id": 0,
+            "start": 0,
+            "stop": total_stop,
+            "on": True,
+            "bri": max(1, min(255, int(brightness))),
+            "fx": 0,
+            "sx": 128,
+            "ix": 128,
+            "pal": 0,
+            "i": pixels,
+        }],
+    }
+
+
 def call_wled(payload):
     response = requests.post(f"{settings()['wled_url']}/json/state", json=payload, timeout=2)
     response.raise_for_status()
@@ -597,7 +628,7 @@ def api_wled_zones(mode: str = "drawers"):
     if mode not in ("drawers", "cabinets"):
         raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
     zones = wled_zones(mode)
-    return {"mode": mode, "zones": zones, "segments": wled_segments_for_zones(zones)}
+    return {"mode": mode, "zones": zones, "segments": wled_segments_for_zones(zones), "payload": wled_pixel_payload_for_zones(zones)}
 
 
 @app.post("/api/wled/apply-zones")
@@ -607,13 +638,7 @@ def api_wled_apply_zones(data: dict = Body(default={})):
     if mode not in ("drawers", "cabinets"):
         raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
     zones = wled_zones(mode)
-    payload = {
-        "on": True,
-        "bri": max(1, min(255, brightness)),
-        "transition": 7,
-        "mainseg": 0,
-        "seg": wled_segments_for_zones(zones, brightness),
-    }
+    payload = wled_pixel_payload_for_zones(zones, brightness)
     return {"ok": True, "mode": mode, "zones": zones, "wled": call_wled(payload)}
 
 

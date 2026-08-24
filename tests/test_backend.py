@@ -61,6 +61,15 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(drawer_zones[0]["led_start"], 0)
         self.assertEqual(cabinet_zones[0]["led_stop"], 80)
 
+    def test_wled_zone_payload_uses_single_pixel_segment(self):
+        backend = self.load_app_module()
+        zones = backend.wled_zones("drawers")
+        payload = backend.wled_pixel_payload_for_zones(zones)
+        active_segments = [segment for segment in payload["seg"] if segment.get("id") == 0]
+        self.assertEqual(len(active_segments), 1)
+        self.assertIn("i", active_segments[0])
+        self.assertEqual(active_segments[0]["stop"], 96)
+
 
 if __name__ == "__main__":
     unittest.main()

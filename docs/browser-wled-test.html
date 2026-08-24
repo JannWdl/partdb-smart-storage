@@ -143,7 +143,7 @@
     }
     function payload() {
       const bri = Number($("brightness").value || 180);
-      return { on:true, bri, transition:7, mainseg:0, seg:zones().map((z, i) => ({ id:i, start:z.led_start, stop:z.led_stop, on:true, bri, col:[z.color,[0,0,0],[0,0,0]], fx:0, sx:128, ix:128, pal:0 })) };
+      return pixelPayload(zones(), bri);
     }
     function renderBoard() {
       const board = $("board"); board.innerHTML = "";
@@ -158,7 +158,10 @@
       }
     }
     function drag(e, c, block, board) {
-      e.preventDefault(); state.selected = c.id; fillInspector(); renderBoard();
+      e.preventDefault();
+      state.selected = c.id;
+      fillInspector();
+      document.querySelectorAll(".block").forEach(el => el.classList.toggle("selected", el === block));
       const sx = e.clientX, sy = e.clientY, ox = c.x, oy = c.y, sz = size(c);
       block.setPointerCapture(e.pointerId);
       block.onpointermove = (m) => {
@@ -207,17 +210,27 @@
     function clearSegments() {
       return Array.from({ length: 31 }).map((_, i) => ({ id:i + 1, stop:0 }));
     }
-    function testPayload(z) {
+    function pixelPayload(activeZones, bri = 180) {
+      const totalStop = Math.max(...slots().map(s => s.led_stop), ...activeZones.map(z => z.led_stop), 1);
+      const colors = new Map();
+      for (const z of activeZones) {
+        for (let led = z.led_start; led < z.led_stop; led++) colors.set(led, z.color || [0,140,255]);
+      }
+      const items = [];
+      for (let led = 0; led < totalStop; led++) items.push(led, colors.get(led) || [0,0,0]);
       return {
         on:true,
-        bri:220,
+        bri,
         transition:0,
         mainseg:0,
         seg:[
           ...clearSegments(),
-          { id:0, start:z.led_start, stop:z.led_stop, on:true, bri:255, col:[[0,140,255],[0,0,0],[0,0,0]], fx:2, sx:140, ix:180, pal:0 }
+          { id:0, start:0, stop:totalStop, on:true, bri, fx:0, sx:128, ix:128, pal:0, i:items }
         ]
       };
+    }
+    function testPayload(z) {
+      return pixelPayload([{ ...z, color:[0,140,255] }], 220);
     }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");

@@ -130,6 +130,7 @@ Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem akt
 - Klick auf eine Zone testet den LED-Bereich direkt am Controller.
 - `Zonen an WLED senden` schreibt die generierten Segmente in WLED.
 - Wenn ein Klick auf ein oberes Fach eine ganze Spalte beleuchtet, im Setup-Assistenten beim Magazinblock die Verdrahtung von `Zeilenweise` auf `Spaltenweise` stellen.
+- Die Vollvorschau nutzt einzelne Pixel-Farben in einem WLED-Segment, damit auch Controller mit niedrigem Segmentlimit alle Fächer anzeigen können.
 
 Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.
 
