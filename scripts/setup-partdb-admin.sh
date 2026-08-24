@@ -3,6 +3,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/partdb-smart-storage}"
 USERNAME="${PARTDB_ADMIN_USER:-admin}"
+PASSWORD="${PARTDB_ADMIN_PASSWORD:-admin}"
 
 if [[ -d "$APP_DIR" ]]; then
   cd "$APP_DIR"
@@ -21,26 +22,12 @@ fi
 echo
 echo "Part-DB Admin einrichten"
 echo "Benutzer: $USERNAME"
-echo
+echo "Passwort: $PASSWORD"
 
-read -r -s -p "Neues Part-DB Passwort: " password
-echo
-read -r -s -p "Passwort wiederholen: " password_repeat
-echo
-
-if [[ -z "$password" ]]; then
-  echo "Passwort darf nicht leer sein."
-  exit 1
-fi
-
-if [[ "$password" != "$password_repeat" ]]; then
-  echo "Passwoerter stimmen nicht ueberein."
-  exit 1
-fi
-
+tmp_script="$(mktemp)"
 tmp_input="$(mktemp)"
-trap 'rm -f "$tmp_input"' EXIT
-printf "yes\n%s\n%s\n" "$password" "$password" > "$tmp_input"
+trap 'rm -f "$tmp_script" "$tmp_input"' EXIT
+printf "yes\n%s\n%s\n" "$PASSWORD" "$PASSWORD" > "$tmp_input"
 
 if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
   echo
@@ -50,7 +37,123 @@ if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:
   exit 1
 fi
 
+cat > "$tmp_script" <<'PHP'
+<?php
+require '/var/www/html/vendor/autoload.php';
+
+use App\Entity\UserSystem\ApiToken;
+use App\Entity\UserSystem\ApiTokenLevel;
+use App\Entity\UserSystem\User;
+use App\Services\UserSystem\PermissionPresetsHelper;
+
+$username = getenv('PARTDB_SETUP_USER') ?: 'admin';
+
+$kernel = new App\Kernel(getenv('APP_ENV') ?: 'docker', false);
+$kernel->boot();
+$container = $kernel->getContainer();
+$em = $container->get('doctrine')->getManager();
+$repo = $em->getRepository(User::class);
+$user = method_exists($repo, 'findByEmailOrName') ? $repo->findByEmailOrName($username) : null;
+
+if (!$user instanceof User) {
+    fwrite(STDERR, "User '$username' wurde nicht gefunden.\n");
+    exit(2);
+}
+
+$user->setDisabled(false);
+
+$presets = $container->get(PermissionPresetsHelper::class);
+$presets->applyPreset($user, PermissionPresetsHelper::PRESET_ADMIN);
+
+$token = null;
+foreach ($user->getApiTokens() as $existing) {
+    if ($existing->getName() === 'Smart Storage') {
+        $token = $existing;
+        break;
+    }
+}
+
+if (!$token instanceof ApiToken) {
+    $token = new ApiToken();
+    $token->setName('Smart Storage');
+    $token->setUser($user);
+    $user->addApiToken($token);
+    $em->persist($token);
+}
+
+$token->setLevel(ApiTokenLevel::FULL);
+$token->setValidUntil(null);
+$em->persist($user);
+$em->flush();
+
+echo $token->getToken() . PHP_EOL;
+PHP
+
+if ! token="$(
+  docker compose exec -T \
+    --user www-data \
+    -e PARTDB_SETUP_USER="$USERNAME" \
+    partdb php < "$tmp_script"
+)"; then
+  echo
+  echo "Admin-Zugang oder API-Token konnte nicht eingerichtet werden."
+  echo "Vorhandene Benutzer anzeigen:"
+  echo "  sudo docker compose exec --user www-data partdb php bin/console partdb:users:list"
+  exit 1
+fi
+
+token="$(printf '%s' "$token" | tail -n 1 | tr -d '\r')"
+if [[ -z "$token" ]]; then
+  echo "Part-DB hat keinen API-Token ausgegeben."
+  exit 1
+fi
+
+if [[ -f .env ]]; then
+  if grep -q '^PARTDB_API_TOKEN=' .env; then
+    sed -i "s|^PARTDB_API_TOKEN=.*|PARTDB_API_TOKEN=$token|" .env
+  else
+    printf '\nPARTDB_API_TOKEN=%s\n' "$token" >> .env
+  fi
+fi
+
+docker compose up -d smart-storage >/dev/null
+docker compose exec -T \
+  -e PARTDB_API_TOKEN="$token" \
+  smart-storage python - <<'PY'
+import json
+import os
+import sqlite3
+import time
+
+db_path = "/data/smart-storage.db"
+now = int(time.time())
+con = sqlite3.connect(db_path)
+try:
+    con.execute("create table if not exists settings (key text primary key, value text not null, updated_at integer not null)")
+    values = {
+        "partdb_api_token": os.environ["PARTDB_API_TOKEN"],
+        "partdb_internal_url": os.environ.get("PARTDB_INTERNAL_URL", "http://partdb:80").rstrip("/"),
+        "partdb_url": os.environ.get("PARTDB_PUBLIC_URL", "http://partdb.local:8080").rstrip("/"),
+        "partdb_stock_write_enabled": True,
+    }
+    for key, value in values.items():
+        con.execute(
+            """
+            insert into settings (key, value, updated_at)
+            values (?, ?, ?)
+            on conflict(key) do update set value=excluded.value, updated_at=excluded.updated_at
+            """,
+            (key, json.dumps(value), now),
+        )
+    con.commit()
+finally:
+    con.close()
+PY
+docker compose restart smart-storage >/dev/null
+
 echo
 echo "Admin-Zugang ist bereit."
 echo "Login:    $USERNAME"
+echo "Passwort: $PASSWORD"
+echo "API:      Smart Storage ist mit Part-DB verbunden."
 echo "Part-DB:  http://$(hostname -I | awk '{print $1}'):8080"

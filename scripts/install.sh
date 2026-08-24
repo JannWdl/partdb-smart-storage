@@ -42,16 +42,11 @@ docker compose build
 systemctl restart partdb-smart-storage.service
 sleep 8
 ./scripts/migrate-partdb.sh
-if [[ -t 0 ]]; then
-  ./scripts/setup-partdb-admin.sh
-else
-  echo "Kein interaktives Terminal erkannt. Admin-Passwort spaeter setzen mit:"
-  echo "sudo APP_DIR=$APP_DIR ./scripts/setup-partdb-admin.sh"
-fi
+./scripts/setup-partdb-admin.sh
 
 echo
 echo "Fertig."
 echo "Part-DB:        http://$(hostname -I | awk '{print $1}'):8080"
 echo "Smart Storage:  http://$(hostname -I | awk '{print $1}'):8090"
-echo "Part-DB Login:  admin"
+echo "Part-DB Login:  admin / admin"
 echo "Konfiguration:  $APP_DIR/.env"

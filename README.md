@@ -13,7 +13,7 @@ Reproduzierbares Raspberry-Pi-Projekt für Part-DB, WLED und ein visuelles Klein
 - Testet einzelne Fächer direkt am WLED-Controller.
 - Verwaltet Part-DB-, WLED- und Barcode-Einstellungen in der Oberfläche.
 - Unterstützt USB-Barcode-Scanner und Browser-Kamera-Scanner.
-- Protokolliert lokale Bestandsbuchungen, ohne Part-DB-Bestände direkt zu verändern.
+- Bucht Barcode-Zugang/-Abgang in Part-DB und protokolliert alle Aktionen lokal.
 - Bietet Locate-Suche: Teil suchen, passendes Fach leuchtet.
 - Enthält Install, Update, Backup, Restore und Uninstall.
 - Läuft nach Installation automatisch über systemd.
@@ -45,9 +45,11 @@ Danach:
 
 - Part-DB: `http://<pi-ip>:8080`
 - Smart Storage: `http://<pi-ip>:8090`
-- Part-DB Login: `admin` mit dem Passwort, das der Installer abfragt
+- Part-DB Login: `admin` / `admin`
 
-Wenn Part-DB schon installiert ist und nur das Admin-Passwort gesetzt werden soll:
+Der Installer verbindet Smart Storage automatisch mit Part-DB, indem er einen API-Token fuer den Admin erzeugt und in Smart Storage hinterlegt.
+
+Wenn Part-DB schon installiert ist und Admin/API-Anbindung neu gesetzt werden soll:
 
 ```bash
 cd /opt/partdb-smart-storage
