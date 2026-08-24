@@ -322,11 +322,19 @@ def partdb_stock_strategy():
     try:
         docs = partdb_openapi()
     except Exception as exc:
-        return {"ok": False, "message": f"Part-DB OpenAPI konnte nicht gelesen werden: {exc}"}
+        return {
+            "ok": True,
+            "strategy": "part_lot_patch_unverified",
+            "message": f"Part-DB OpenAPI nicht verfügbar, Bestandsschreiben wird direkt versucht: {exc}",
+        }
     paths = docs.get("paths", {}) if isinstance(docs, dict) else {}
     part_lot_patch = any("part_lots" in path and "patch" in {method.lower() for method in methods} for path, methods in paths.items() if isinstance(methods, dict))
     if not part_lot_patch:
-        return {"ok": False, "message": "Part-DB API bietet keinen PATCH-Endpunkt fuer Part-Lots an."}
+        return {
+            "ok": True,
+            "strategy": "part_lot_patch_unverified",
+            "message": "Part-DB OpenAPI nennt keinen Part-Lot-PATCH-Endpunkt, Bestandsschreiben wird direkt versucht.",
+        }
     return {"ok": True, "strategy": "part_lot_patch", "message": "Part-DB Bestandsschreiben ist bereit."}
 
 

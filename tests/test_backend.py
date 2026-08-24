@@ -82,6 +82,14 @@ class BackendTests(unittest.TestCase):
             backend.partdb_openapi()
         self.assertEqual(get.call_args.kwargs["headers"]["Accept"], "application/json")
 
+    def test_stock_strategy_allows_direct_write_when_openapi_is_unavailable(self):
+        backend = self.load_app_module()
+        backend.save_settings({"partdb_api_token": "abc123"})
+        with patch.object(backend, "partdb_openapi", side_effect=RuntimeError("406")):
+            result = backend.partdb_stock_strategy()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["strategy"], "part_lot_patch_unverified")
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})

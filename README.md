@@ -2,6 +2,8 @@
 
 Reproduzierbares Raspberry-Pi-Projekt für Part-DB, WLED und ein visuelles Kleinteilemagazin.
 
+Status: **Beta**. Die Grundfunktionen laufen, Part-DB-Stock-API und Barcode-Flows werden aktiv getestet.
+
 ## Funktionen
 
 - Installiert Part-DB per Docker Compose auf Raspberry Pi OS 64-bit.
@@ -48,6 +50,37 @@ Danach:
 - Part-DB Login nach Erstinstallation: `admin` / `admin`
 
 Der Installer setzt das Admin-Passwort nur bei der Erstinstallation auf `admin`. Danach verbindet er Smart Storage automatisch mit Part-DB, indem er API-Rechte fuer den Admin setzt, einen API-Token erzeugt und diesen in Smart Storage hinterlegt.
+
+## Autostart Als Service
+
+Die Installation richtet einen systemd-Service ein. Dieser startet beim Raspberry-Pi-Neustart den kompletten Docker-Compose-Stack:
+
+- Part-DB auf Port `8080`
+- Smart Storage auf Port `8090`
+- gemeinsame Docker-Netzwerkverbindung fuer die interne Part-DB-API
+
+Pruefen:
+
+```bash
+sudo systemctl status partdb-smart-storage
+cd /opt/partdb-smart-storage
+sudo docker compose ps
+```
+
+Autostart reparieren oder nach einem manuellen Update neu setzen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/ensure-autostart.sh
+```
+
+Manuell steuern:
+
+```bash
+sudo systemctl start partdb-smart-storage
+sudo systemctl stop partdb-smart-storage
+sudo systemctl restart partdb-smart-storage
+```
 
 Wenn Part-DB schon installiert ist und nur Admin/API-Anbindung repariert werden soll:
 
