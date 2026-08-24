@@ -381,6 +381,11 @@ textarea {
   margin-bottom: 10px;
 }
 
+.token-state {
+  grid-column: 1 / -1;
+  margin: -2px 0 2px;
+}
+
 .barcode-line {
   margin-top: 10px;
 }

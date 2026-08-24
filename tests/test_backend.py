@@ -34,6 +34,13 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(saved["partdb_stock_write_enabled"])
         self.assertEqual(saved["scan_timeout_seconds"], 12)
 
+    def test_empty_token_does_not_overwrite_existing_token(self):
+        backend = self.load_app_module()
+        backend.save_settings({"partdb_api_token": "abc123"})
+        saved = backend.save_settings({"partdb_api_token": ""})
+        self.assertEqual(saved["partdb_api_token"], "abc123")
+        self.assertTrue(saved["partdb_api_token_configured"])
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})

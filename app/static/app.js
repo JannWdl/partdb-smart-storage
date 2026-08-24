@@ -157,7 +157,8 @@ function renderSettingsPanel() {
     <div class="fields settings-fields">
       <label>Part-DB URL <input id="settingPartdbUrl" value="${cfg.partdb_url || ""}"></label>
       <label>Part-DB intern <input id="settingPartdbInternalUrl" value="${cfg.partdb_internal_url || ""}"></label>
-      <label>API-Token <input id="settingPartdbToken" type="password" value="${cfg.partdb_api_token || ""}"></label>
+      <label>API-Token <input id="settingPartdbToken" type="password" placeholder="${cfg.partdb_api_token_configured ? "Gesetzt - leer lassen zum Behalten" : "Kein Token gesetzt"}"></label>
+      <p class="meta token-state">${cfg.partdb_api_token_configured ? "Part-DB Token ist gesetzt." : "Part-DB Token fehlt. Bitte setup-partdb-admin.sh ausfuehren oder Token eintragen."}</p>
       <label>WLED URL <input id="settingWledUrl" value="${cfg.wled_url || ""}"></label>
       <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
       <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
@@ -304,6 +305,7 @@ async function saveSettings() {
   });
   toast("Einstellungen gespeichert.");
   await checkHealth();
+  renderSettingsPanel();
   renderBarcodePanel();
 }
 

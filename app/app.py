@@ -184,6 +184,7 @@ def settings():
     result["barcode_enabled"] = bool(result["barcode_enabled"])
     result["barcode_camera_enabled"] = bool(result["barcode_camera_enabled"])
     result["partdb_stock_write_enabled"] = bool(result["partdb_stock_write_enabled"])
+    result["partdb_api_token_configured"] = bool(result.get("partdb_api_token"))
     return result
 
 
@@ -193,8 +194,12 @@ def save_settings(payload):
         for key, value in payload.items():
             if key not in ENV_DEFAULTS:
                 continue
+            if key == "partdb_api_token" and not str(value or "").strip():
+                continue
             if key in ("partdb_url", "partdb_internal_url", "wled_url"):
                 value = str(value).strip().rstrip("/")
+            if key == "partdb_api_token":
+                value = str(value).strip()
             if key == "scan_timeout_seconds":
                 value = max(5, min(300, int(value or 30)))
             if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled"):
