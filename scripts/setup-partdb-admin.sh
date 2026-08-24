@@ -42,11 +42,11 @@ tmp_input="$(mktemp)"
 trap 'rm -f "$tmp_input"' EXIT
 printf "yes\n%s\n%s\n" "$password" "$password" > "$tmp_input"
 
-if ! docker compose exec -T partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
+if ! docker compose exec -T --user www-data partdb php bin/console partdb:users:set-password "$USERNAME" < "$tmp_input"; then
   echo
   echo "Passwort konnte fuer '$USERNAME' nicht gesetzt werden."
   echo "Vorhandene Benutzer anzeigen:"
-  echo "  sudo docker compose exec partdb php bin/console partdb:users:list"
+  echo "  sudo docker compose exec --user www-data partdb php bin/console partdb:users:list"
   exit 1
 fi
 
