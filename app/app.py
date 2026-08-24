@@ -235,8 +235,36 @@ def partdb_api_url(path):
     return f"{settings()['partdb_internal_url']}/api{path}"
 
 
-def partdb_get(path, timeout=4):
-    response = requests.get(partdb_api_url(path), headers=auth_headers(), timeout=timeout)
+def partdb_request(method, path, **kwargs):
+    timeout = kwargs.pop("timeout", 12)
+    attempts = kwargs.pop("attempts", 3)
+    headers = kwargs.pop("headers", auth_headers())
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            response = requests.request(method, partdb_api_url(path), headers=headers, timeout=timeout, **kwargs)
+            if response.status_code in (502, 503, 504) and attempt + 1 < attempts:
+                time.sleep(1 + attempt)
+                continue
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt + 1 < attempts:
+                time.sleep(1 + attempt)
+                continue
+    raise RuntimeError(f"Part-DB antwortet nicht: {last_error}")
+
+
+def partdb_permission_message(status_code):
+    if status_code == 401:
+        return "Part-DB API-Token fehlt, ist falsch oder abgelaufen."
+    if status_code == 403:
+        return "Part-DB verweigert den API-Zugriff. Token-Scope und Benutzerrecht Miscellaneous/API in Part-DB pruefen."
+    return f"Part-DB HTTP {status_code}"
+
+
+def partdb_get(path, timeout=12):
+    response = partdb_request("GET", path, timeout=timeout)
     response.raise_for_status()
     return response.json()
 
@@ -244,7 +272,7 @@ def partdb_get(path, timeout=4):
 def partdb_patch(path, payload):
     headers = auth_headers()
     headers["Content-Type"] = "application/merge-patch+json"
-    response = requests.patch(partdb_api_url(path), headers=headers, json=payload, timeout=5)
+    response = partdb_request("PATCH", path, headers=headers, json=payload, timeout=12)
     response.raise_for_status()
     try:
         return response.json()
@@ -359,14 +387,15 @@ def part_url(part_id):
 
 
 def partdb_search(query):
-    cfg = settings()
     candidates = []
     last_error = None
     for path in partdb_search_paths(query):
         try:
-            response = requests.get(partdb_api_url(path), headers=auth_headers(), timeout=3)
+            response = partdb_request("GET", path, timeout=12)
             if response.status_code >= 400:
-                last_error = f"Part-DB HTTP {response.status_code}"
+                last_error = partdb_permission_message(response.status_code)
+                if response.status_code in (401, 403):
+                    break
                 continue
             payload = response.json() if "json" in response.headers.get("content-type", "") else {}
             for item in collection_items(payload):
