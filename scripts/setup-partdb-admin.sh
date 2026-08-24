@@ -154,9 +154,17 @@ finally:
 PY
 docker compose restart smart-storage >/dev/null
 
+api_status="$(curl -sS -o /dev/null -w "%{http_code}" \
+  -H "Accept: application/ld+json" \
+  -H "Authorization: Bearer $token" \
+  http://localhost:8080/api/parts.jsonld || true)"
+
 echo
 echo "Admin-Zugang ist bereit."
 echo "Login:    $USERNAME"
 echo "Passwort: $PASSWORD"
-echo "API:      Smart Storage ist mit Part-DB verbunden."
+echo "API:      Smart Storage Token wurde gespeichert. Teststatus: $api_status"
+if [[ "$api_status" == "401" || "$api_status" == "403" ]]; then
+  echo "Hinweis: Part-DB verweigert den API-Zugriff. In Part-DB Benutzerrechte Miscellaneous/API und Token-Scope pruefen."
+fi
 echo "Part-DB:  http://$(hostname -I | awk '{print $1}'):8080"

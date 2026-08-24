@@ -72,3 +72,18 @@ Container pruefen:
 cd /opt/partdb-smart-storage
 sudo docker compose ps
 ```
+
+## Part-DB API pruefen
+
+Wenn Smart Storage bei der Teile-Suche `401`, `403` oder `502` zeigt:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/diagnose-partdb-api.sh
+```
+
+Bei `403 Forbidden` mit `@api.access_api` verweigert Part-DB den API-Zugriff. Dann in Part-DB als Admin den Benutzer beziehungsweise die Admin-Gruppe pruefen:
+
+- Recht **Miscellaneous / API** erlauben
+- API-Token mit Scope **Full** oder mindestens **Edit** neu erstellen
+- Token in Smart Storage unter **Einstellungen** speichern
