@@ -26,6 +26,22 @@ function toast(message) {
   setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+function setupSeen() {
+  try {
+    return localStorage.getItem("smart-storage-setup-seen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberSetupSeen() {
+  try {
+    localStorage.setItem("smart-storage-setup-seen", "1");
+  } catch {
+    // The assistant can still be opened from the setup tab.
+  }
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     headers: { "Content-Type": "application/json" },
@@ -58,7 +74,7 @@ async function loadAll() {
   renderSetupGuide();
   renderSideTabs();
   checkHealth();
-  if (!state.setupModalShown) {
+  if (!state.setupModalShown && !setupSeen()) {
     state.setupModalShown = true;
     openSetupModal();
   }
@@ -156,13 +172,16 @@ function renderSideTabs() {
   document.querySelectorAll(".side-tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.panel === state.activePanel);
     button.onclick = () => {
+      if (button.dataset.panel === "setupModal") {
+        openSetupModal();
+        return;
+      }
       state.activePanel = button.dataset.panel;
       renderSideTabs();
     };
   });
   document.querySelectorAll(".side-panel").forEach((panel) => {
-    const visible = panel.id === state.activePanel || (state.activePanel === "assignPanel" && panel.id === "assignmentsPanel");
-    panel.classList.toggle("active", visible);
+    panel.classList.toggle("active", panel.id === state.activePanel);
   });
 }
 
@@ -172,6 +191,7 @@ function openSetupModal() {
 }
 
 function closeSetupModal() {
+  rememberSetupSeen();
   $("setupModal").classList.remove("open");
 }
 
@@ -708,7 +728,6 @@ document.querySelectorAll(".tab").forEach((tab) => {
   };
 });
 
-$("openSetupBtn").onclick = openSetupModal;
 $("closeSetupBtn").onclick = closeSetupModal;
 
 loadAll().catch((error) => toast(error.message));
