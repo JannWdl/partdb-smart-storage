@@ -45,6 +45,12 @@
     .wizard-steps button.active { color: var(--accent); border-color: #6f5b1b; background: #302812; }
     .wizard-panel { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
     .wizard-panel strong { color: var(--text); }
+    .modal { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.68); }
+    .modal.open { display: flex; }
+    .modal-card { width: min(720px, 100%); max-height: min(760px, calc(100vh - 36px)); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: #1a2027; box-shadow: 0 24px 80px rgba(0,0,0,.48); }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-bottom: 1px solid var(--line); }
+    .modal-body { display: grid; gap: 12px; padding: 14px; }
+    .modal-foot { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
     #toast { position: fixed; left: 50%; bottom: 18px; max-width: min(680px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transform: translateX(-50%); transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); pointer-events: none; }
     #toast.show { opacity: 1; }
     @media (max-width: 980px) { main { grid-template-columns: 1fr; } .actions.three { grid-template-columns: 1fr; } }
@@ -58,18 +64,11 @@
   <main>
     <div class="stack">
       <section>
-        <h2>Setup-Assistent</h2>
-        <div class="wizard">
-          <div id="wizardSteps" class="wizard-steps"></div>
-          <div id="wizardPanel" class="wizard-panel"></div>
-          <div class="actions">
-            <button id="wizardBack">Zurück</button>
-            <button id="wizardNext" class="primary">Weiter</button>
-          </div>
-        </div>
-      </section>
-      <section>
         <h2>Magazin grafisch bauen</h2>
+        <div class="actions" style="margin-bottom:10px">
+          <button id="openWizard" class="primary">Setup-Assistent öffnen</button>
+          <button id="resetPage">Frisch starten</button>
+        </div>
         <div id="board" class="board"></div>
         <p class="pill">Blöcke ziehen, anklicken und rechts bearbeiten.</p>
       </section>
@@ -129,6 +128,26 @@
       </section>
     </aside>
   </main>
+  <div id="wizardModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Setup-Assistent</h2>
+          <p>Geführte Einrichtung für WLED und dein Kleinteilemagazin.</p>
+        </div>
+        <button id="wizardClose">Schließen</button>
+      </div>
+      <div class="modal-body">
+        <div id="wizardSteps" class="wizard-steps"></div>
+        <div id="wizardPanel" class="wizard-panel"></div>
+      </div>
+      <div class="modal-foot">
+        <button id="wizardBack">Zurück</button>
+        <button id="wizardReset">Frisch starten</button>
+        <button id="wizardNext" class="primary">Weiter</button>
+      </div>
+    </div>
+  </div>
   <div id="toast"></div>
   <script>
     const colors = { cyan:[0,150,255], blue:[0,0,255], yellow:[255,180,0], green:[0,255,90], red:[255,0,0], white:[255,255,255] };
@@ -172,6 +191,7 @@
       $("testStop").value = "16";
       status("Bereit", "Browser-Zustand zurückgesetzt. WLED wurde nicht verändert.");
       renderAll();
+      if ($("wizardModal")?.classList.contains("open")) openWizard(true);
       if (!silent) toast("Setup-Assistent zurückgesetzt");
     }
 
@@ -263,7 +283,7 @@
       const panels = [
         `<strong>WLED verbinden</strong><p>Prüfe zuerst, ob der Controller erreichbar ist. Deine Storage-LEDs liegen auf LED 0 bis 95; Ambilight beginnt ab LED 96.</p><button id="wizardConnect" class="primary">Verbinden</button>`,
         `<strong>Stripe-Länge setzen</strong><p>Für Smart Storage bleibt Gesamt-LEDs auf 96. Damit wird der Ambilight-Bereich nicht getestet.</p><button id="wizardAllOn" class="primary">Alle Storage-LEDs testen</button>`,
-        `<strong>Magazine einrichten</strong><p>Ziehe die Blöcke, stelle Reihen, Spalten, Start-LED, Stop-LED, Strip-Verlauf und Serpentine ein. Stop-LED ist exklusiv.</p><button id="wizardReset">Assistent frisch starten</button>`,
+        `<strong>Magazine einrichten</strong><p>Ziehe die Blöcke, stelle Reihen, Spalten, Start-LED, Stop-LED, Strip-Verlauf und Serpentine ein. Stop-LED ist exklusiv. Du kannst dieses Fenster offen lassen und dahinter arbeiten.</p><button id="wizardLayoutDone" class="primary">Layout passt</button>`,
         `<strong>Fächer testen</strong><p>Klicke links auf einzelne Fächer oder nutze einen manuellen Bereich. Danach kannst du die Zonen anzeigen.</p><button id="wizardRange" class="primary">Bereich 0-15 testen</button>`
       ];
       $("wizardPanel").innerHTML = panels[state.wizardStep];
@@ -275,12 +295,27 @@
       if (all) all.onclick = () => allOn().catch(error => toast(`Fehler: ${error.message}`));
       const reset = $("wizardReset");
       if (reset) reset.onclick = () => resetBrowserState(false);
+      const layoutDone = $("wizardLayoutDone");
+      if (layoutDone) layoutDone.onclick = () => {
+        state.wizardStep = 3;
+        renderWizard();
+      };
       const range = $("wizardRange");
       if (range) range.onclick = () => {
         $("testStart").value = "0";
         $("testStop").value = "16";
         rangeTest().catch(error => toast(`Fehler: ${error.message}`));
       };
+    }
+
+    function openWizard(reset = false) {
+      if (reset) state.wizardStep = 0;
+      $("wizardModal").classList.add("open");
+      renderWizard();
+    }
+
+    function closeWizard() {
+      $("wizardModal").classList.remove("open");
     }
 
     function selectedColor() {
@@ -495,6 +530,10 @@
     $("showZones").onclick = () => showZones().catch(error => toast(`Fehler: ${error.message}`));
     $("clearSegments").onclick = () => clearWledSegments().catch(error => toast(`Fehler: ${error.message}`));
     $("off").onclick = () => sendWled({ T:0 }, "LEDs aus").catch(error => toast(`Fehler: ${error.message}`));
+    $("openWizard").onclick = () => openWizard(false);
+    $("resetPage").onclick = () => resetBrowserState(false);
+    $("wizardClose").onclick = closeWizard;
+    $("wizardReset").onclick = () => resetBrowserState(false);
     $("wizardBack").onclick = () => {
       state.wizardStep = Math.max(0, state.wizardStep - 1);
       renderWizard();
@@ -504,6 +543,7 @@
       renderWizard();
     };
     resetBrowserState(true);
+    openWizard(true);
   </script>
 </body>
 </html>
