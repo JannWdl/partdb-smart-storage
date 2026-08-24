@@ -39,6 +39,12 @@
     .status { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--muted); font-size: 13px; word-break: break-all; }
     .status b { color: var(--text); }
     .pill { display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    .wizard { display: grid; gap: 10px; }
+    .wizard-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .wizard-steps button { min-height: 34px; padding: 6px; font-size: 12px; color: var(--muted); }
+    .wizard-steps button.active { color: var(--accent); border-color: #6f5b1b; background: #302812; }
+    .wizard-panel { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+    .wizard-panel strong { color: var(--text); }
     #toast { position: fixed; left: 50%; bottom: 18px; max-width: min(680px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transform: translateX(-50%); transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); pointer-events: none; }
     #toast.show { opacity: 1; }
     @media (max-width: 980px) { main { grid-template-columns: 1fr; } .actions.three { grid-template-columns: 1fr; } }
@@ -51,6 +57,17 @@
   </header>
   <main>
     <div class="stack">
+      <section>
+        <h2>Setup-Assistent</h2>
+        <div class="wizard">
+          <div id="wizardSteps" class="wizard-steps"></div>
+          <div id="wizardPanel" class="wizard-panel"></div>
+          <div class="actions">
+            <button id="wizardBack">Zurück</button>
+            <button id="wizardNext" class="primary">Weiter</button>
+          </div>
+        </div>
+      </section>
       <section>
         <h2>Magazin grafisch bauen</h2>
         <div id="board" class="board"></div>
@@ -116,13 +133,15 @@
   <script>
     const colors = { cyan:[0,150,255], blue:[0,0,255], yellow:[255,180,0], green:[0,255,90], red:[255,0,0], white:[255,255,255] };
     const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
+    const defaultCabinets = [
+      { id:"main", name:"Hauptmagazin", rows:5, columns:4, start_led:0, leds_per_slot:4, slot_width_mm:55, slot_height_mm:38, strip_path:"rows", serpentine:false, x:24, y:24 },
+      { id:"bottom", name:"Großes Fach unten", rows:1, columns:1, start_led:80, leds_per_slot:16, slot_width_mm:220, slot_height_mm:55, strip_path:"rows", serpentine:false, x:24, y:300 }
+    ];
     const state = {
+      wizardStep: 0,
       mode: "drawers",
       selected: "main",
-      cabinets: [
-        { id:"main", name:"Hauptmagazin", rows:5, columns:4, start_led:0, leds_per_slot:4, slot_width_mm:55, slot_height_mm:38, strip_path:"rows", serpentine:false, x:24, y:24 },
-        { id:"bottom", name:"Großes Fach unten", rows:1, columns:1, start_led:80, leds_per_slot:16, slot_width_mm:220, slot_height_mm:55, strip_path:"rows", serpentine:false, x:24, y:300 }
-      ]
+      cabinets: structuredClone(defaultCabinets)
     };
     const $ = (id) => document.getElementById(id);
 
@@ -136,6 +155,24 @@
     function status(title, detail) {
       $("statusTitle").textContent = title;
       $("statusDetail").textContent = detail;
+    }
+
+    function resetBrowserState(silent = false) {
+      localStorage.removeItem("smart-storage-wled-setup");
+      sessionStorage.removeItem("smart-storage-wled-setup");
+      state.wizardStep = 0;
+      state.mode = "drawers";
+      state.selected = "main";
+      state.cabinets = structuredClone(defaultCabinets);
+      $("wledUrl").value = "http://192.168.178.220";
+      $("totalLeds").value = "96";
+      $("brightness").value = "180";
+      $("color").value = "cyan";
+      $("testStart").value = "0";
+      $("testStop").value = "16";
+      status("Bereit", "Browser-Zustand zurückgesetzt. WLED wurde nicht verändert.");
+      renderAll();
+      if (!silent) toast("Setup-Assistent zurückgesetzt");
     }
 
     function slug(value) {
@@ -212,6 +249,38 @@
 
     function layoutLedCount() {
       return Math.max(...slots().map(slot => slot.led_stop), 1);
+    }
+
+    function renderWizard() {
+      const steps = ["Verbinden", "Stripe", "Layout", "Test"];
+      $("wizardSteps").innerHTML = steps.map((step, index) => `<button data-step="${index}" class="${index === state.wizardStep ? "active" : ""}">${index + 1}. ${step}</button>`).join("");
+      document.querySelectorAll("[data-step]").forEach(button => {
+        button.onclick = () => {
+          state.wizardStep = Number(button.dataset.step);
+          renderWizard();
+        };
+      });
+      const panels = [
+        `<strong>WLED verbinden</strong><p>Prüfe zuerst, ob der Controller erreichbar ist. Deine Storage-LEDs liegen auf LED 0 bis 95; Ambilight beginnt ab LED 96.</p><button id="wizardConnect" class="primary">Verbinden</button>`,
+        `<strong>Stripe-Länge setzen</strong><p>Für Smart Storage bleibt Gesamt-LEDs auf 96. Damit wird der Ambilight-Bereich nicht getestet.</p><button id="wizardAllOn" class="primary">Alle Storage-LEDs testen</button>`,
+        `<strong>Magazine einrichten</strong><p>Ziehe die Blöcke, stelle Reihen, Spalten, Start-LED, Stop-LED, Strip-Verlauf und Serpentine ein. Stop-LED ist exklusiv.</p><button id="wizardReset">Assistent frisch starten</button>`,
+        `<strong>Fächer testen</strong><p>Klicke links auf einzelne Fächer oder nutze einen manuellen Bereich. Danach kannst du die Zonen anzeigen.</p><button id="wizardRange" class="primary">Bereich 0-15 testen</button>`
+      ];
+      $("wizardPanel").innerHTML = panels[state.wizardStep];
+      $("wizardBack").disabled = state.wizardStep === 0;
+      $("wizardNext").textContent = state.wizardStep === steps.length - 1 ? "Fertig" : "Weiter";
+      const connect = $("wizardConnect");
+      if (connect) connect.onclick = () => connectWled().catch(error => toast(`Fehler: ${error.message}`));
+      const all = $("wizardAllOn");
+      if (all) all.onclick = () => allOn().catch(error => toast(`Fehler: ${error.message}`));
+      const reset = $("wizardReset");
+      if (reset) reset.onclick = () => resetBrowserState(false);
+      const range = $("wizardRange");
+      if (range) range.onclick = () => {
+        $("testStart").value = "0";
+        $("testStop").value = "16";
+        rangeTest().catch(error => toast(`Fehler: ${error.message}`));
+      };
     }
 
     function selectedColor() {
@@ -408,6 +477,7 @@
       renderBoard();
       fillInspector();
       renderZones();
+      renderWizard();
     }
 
     ["name", "id", "rows", "columns", "start", "leds", "width", "height", "path", "serpentine"].forEach(id => {
@@ -425,7 +495,15 @@
     $("showZones").onclick = () => showZones().catch(error => toast(`Fehler: ${error.message}`));
     $("clearSegments").onclick = () => clearWledSegments().catch(error => toast(`Fehler: ${error.message}`));
     $("off").onclick = () => sendWled({ T:0 }, "LEDs aus").catch(error => toast(`Fehler: ${error.message}`));
-    renderAll();
+    $("wizardBack").onclick = () => {
+      state.wizardStep = Math.max(0, state.wizardStep - 1);
+      renderWizard();
+    };
+    $("wizardNext").onclick = () => {
+      state.wizardStep = Math.min(3, state.wizardStep + 1);
+      renderWizard();
+    };
+    resetBrowserState(true);
   </script>
 </body>
 </html>
