@@ -144,7 +144,8 @@
     }
     function payload() {
       const bri = Number($("brightness").value || 180);
-      return pixelPayload(zones(), bri);
+      const activeZones = zones();
+      return activeZones.length <= 31 ? segmentPayload(activeZones, bri) : pixelPayload(activeZones, bri);
     }
     function renderBoard() {
       const board = $("board"); board.innerHTML = "";
@@ -211,6 +212,22 @@
     function clearSegments() {
       return Array.from({ length: 31 }).map((_, i) => ({ id:i + 1, stop:0 }));
     }
+    function segmentPayload(activeZones, bri = 180) {
+      const activeSegments = activeZones.slice(0, 31).map((z, index) => ({
+        id:index,
+        start:z.led_start,
+        stop:z.led_stop,
+        on:true,
+        bri,
+        col:[z.color || [0,140,255], [0,0,0], [0,0,0]],
+        fx:0,
+        sx:128,
+        ix:128,
+        pal:0
+      }));
+      const clear = Array.from({ length: 32 - activeSegments.length }).map((_, i) => ({ id:activeSegments.length + i, stop:0 }));
+      return { on:true, bri, transition:0, mainseg:0, seg:[...activeSegments, ...clear] };
+    }
     function pixelPayload(activeZones, bri = 180) {
       const totalStop = Math.max(...slots().map(s => s.led_stop), ...activeZones.map(z => z.led_stop), 1);
       const colors = new Map();
@@ -231,7 +248,7 @@
       };
     }
     function testPayload(z) {
-      return pixelPayload([{ ...z, color:[0,140,255] }], 220);
+      return segmentPayload([{ ...z, color:[0,140,255] }], 220);
     }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");

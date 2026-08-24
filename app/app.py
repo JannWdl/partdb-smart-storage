@@ -340,6 +340,18 @@ def wled_segments_for_zones(zones, brightness=180):
     } for index, zone in enumerate(zones)]
 
 
+def wled_segment_payload_for_zones(zones, brightness=180):
+    active_segments = wled_segments_for_zones(zones[:31], brightness)
+    clear_segments = [{"id": segment_id, "stop": 0} for segment_id in range(len(active_segments), 32)]
+    return {
+        "on": True,
+        "bri": max(1, min(255, int(brightness))),
+        "transition": 0,
+        "mainseg": 0,
+        "seg": active_segments + clear_segments,
+    }
+
+
 def wled_pixel_payload_for_zones(zones, brightness=180):
     if not zones:
         return {"on": True, "bri": int(brightness), "seg": []}
@@ -369,6 +381,12 @@ def wled_pixel_payload_for_zones(zones, brightness=180):
             "i": pixels,
         }],
     }
+
+
+def wled_preview_payload_for_zones(zones, brightness=180):
+    if len(zones) <= 31:
+        return wled_segment_payload_for_zones(zones, brightness)
+    return wled_pixel_payload_for_zones(zones, brightness)
 
 
 def call_wled(payload):
@@ -628,7 +646,7 @@ def api_wled_zones(mode: str = "drawers"):
     if mode not in ("drawers", "cabinets"):
         raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
     zones = wled_zones(mode)
-    return {"mode": mode, "zones": zones, "segments": wled_segments_for_zones(zones), "payload": wled_pixel_payload_for_zones(zones)}
+    return {"mode": mode, "zones": zones, "segments": wled_segments_for_zones(zones), "payload": wled_preview_payload_for_zones(zones)}
 
 
 @app.post("/api/wled/apply-zones")
@@ -638,7 +656,7 @@ def api_wled_apply_zones(data: dict = Body(default={})):
     if mode not in ("drawers", "cabinets"):
         raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
     zones = wled_zones(mode)
-    payload = wled_pixel_payload_for_zones(zones, brightness)
+    payload = wled_preview_payload_for_zones(zones, brightness)
     return {"ok": True, "mode": mode, "zones": zones, "wled": call_wled(payload)}
 
 

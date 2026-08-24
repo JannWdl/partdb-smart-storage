@@ -61,14 +61,23 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(drawer_zones[0]["led_start"], 0)
         self.assertEqual(cabinet_zones[0]["led_stop"], 80)
 
-    def test_wled_zone_payload_uses_single_pixel_segment(self):
+    def test_wled_preview_payload_uses_segments_for_small_layouts(self):
         backend = self.load_app_module()
         zones = backend.wled_zones("drawers")
-        payload = backend.wled_pixel_payload_for_zones(zones)
+        payload = backend.wled_preview_payload_for_zones(zones)
+        active_segments = [segment for segment in payload["seg"] if segment.get("on")]
+        self.assertEqual(len(active_segments), 21)
+        self.assertNotIn("i", active_segments[0])
+        self.assertEqual(active_segments[0]["start"], 0)
+        self.assertEqual(active_segments[20]["stop"], 96)
+
+    def test_wled_preview_payload_uses_pixels_for_large_layouts(self):
+        backend = self.load_app_module()
+        zones = [{"led_start": i, "led_stop": i + 1, "color": [255, 0, 0]} for i in range(40)]
+        payload = backend.wled_preview_payload_for_zones(zones)
         active_segments = [segment for segment in payload["seg"] if segment.get("id") == 0]
         self.assertEqual(len(active_segments), 1)
         self.assertIn("i", active_segments[0])
-        self.assertEqual(active_segments[0]["stop"], 96)
 
 
 if __name__ == "__main__":
