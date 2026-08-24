@@ -45,6 +45,7 @@ Content-Type: application/json
         "slot_height_mm": 38,
         "x": 24,
         "y": 24,
+        "strip_path": "rows",
         "serpentine": false,
         "slot_prefix": "Fach"
       }

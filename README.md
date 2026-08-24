@@ -6,7 +6,7 @@ Reproduzierbares Raspberry-Pi-Projekt für Part-DB, WLED und ein visuelles Klein
 
 - Installiert Part-DB per Docker Compose auf Raspberry Pi OS 64-bit.
 - Startet eine eigene Weboberfläche auf Port `8090`.
-- Konfiguriert Magazine visuell: Reihen, Spalten, Start-LED, LEDs pro Fach, Serpentine.
+- Konfiguriert Magazine visuell: Reihen, Spalten, Start-LED, LEDs pro Fach, Strip-Verlauf und Serpentine.
 - Berechnet LED-Bereiche automatisch pro Fach.
 - Speichert Teil-zu-Fach-Zuordnungen in einer eigenen SQLite-Datenbank.
 - Sucht Teile in Part-DB, sofern die Part-DB-API erreichbar ist.
@@ -129,7 +129,9 @@ Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem akt
 - Modus `Magazinblöcke`: jeder grafische Magazinblock ist eine Zone.
 - Klick auf eine Zone testet den LED-Bereich direkt am Controller.
 - `Zonen an WLED senden` schreibt die generierten Segmente in WLED.
-- Wenn ein Klick auf ein oberes Fach eine ganze Spalte beleuchtet, im Setup-Assistenten beim Magazinblock die Verdrahtung von `Zeilenweise` auf `Spaltenweise` stellen.
+- Die LEDs werden als ein fortlaufender Stripe berechnet, nicht als Matrix.
+- `Strip-Verlauf` legt nur fest, ob der Stripe Reihe für Reihe oder Spalte für Spalte durch die Fächer läuft.
+- `Serpentine` aktivieren, wenn der Stripe am Ende jeder Reihe oder Spalte zurückläuft.
 - Die Vollvorschau nutzt einzelne Pixel-Farben in einem WLED-Segment, damit auch Controller mit niedrigem Segmentlimit alle Fächer anzeigen können.
 
 Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.

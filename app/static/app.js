@@ -395,18 +395,18 @@ function computePreviewSlots(layout) {
     const columns = Number(cabinet.columns || 1);
     const startLed = Number(cabinet.start_led || 0);
     const ledsPerSlot = Number(cabinet.leds_per_slot || 1);
-    const wiringOrder = cabinet.wiring_order || "rows";
+    const stripPath = cabinet.strip_path || cabinet.wiring_order || "rows";
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        let offset;
-        if (wiringOrder === "columns") {
-          const physicalRow = cabinet.serpentine && col % 2 ? rows - 1 - row : row;
-          offset = (col * rows + physicalRow) * ledsPerSlot;
+        let pathIndex;
+        if (stripPath === "columns") {
+          const pathRow = cabinet.serpentine && col % 2 ? rows - 1 - row : row;
+          pathIndex = col * rows + pathRow;
         } else {
-          const physicalCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
-          offset = (row * columns + physicalCol) * ledsPerSlot;
+          const pathCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
+          pathIndex = row * columns + pathCol;
         }
-        const ledStart = startLed + (offset * ledsPerSlot);
+        const ledStart = startLed + (pathIndex * ledsPerSlot);
         slots.push({
           id: `${cabinet.id}-${row + 1}-${col + 1}`,
           label: `${cabinet.slot_prefix || "Fach"} ${globalIndex}`,
@@ -544,7 +544,7 @@ function renderSelectedCabinetPanel() {
 }
 
 function renderLedStep(root) {
-  root.appendChild(helpText("Hier stellst du ein, wo der LED-Bereich jedes Blocks beginnt, wie viele LEDs zu einem Fach gehören und ob die Verkabelung schlangenförmig läuft."));
+  root.appendChild(helpText("Hier stellst du den fortlaufenden LED-Stripe ein: Start-LED, LEDs pro Fach, Laufweg durch die Fächer und optionalen Schlangenlauf."));
   state.draftLayout.cabinets.forEach((cabinet, index) => {
     const slots = state.previewSlots.filter((slot) => slot.cabinet_id === cabinet.id);
     const last = slots.reduce((max, slot) => Math.max(max, slot.led_stop - 1), 0);
@@ -556,10 +556,10 @@ function renderLedStep(root) {
         <label>Start-LED <input type="number" min="0" data-draft-i="${index}" data-k="start_led" value="${cabinet.start_led}"></label>
         <label>LEDs pro Fach <input type="number" min="1" data-draft-i="${index}" data-k="leds_per_slot" value="${cabinet.leds_per_slot}"></label>
         <label>Fach-Beschriftung <input data-draft-i="${index}" data-k="slot_prefix" value="${cabinet.slot_prefix || "Fach"}"></label>
-        <label>Verdrahtung <select data-draft-i="${index}" data-k="wiring_order"><option value="rows" ${cabinet.wiring_order !== "columns" ? "selected" : ""}>Zeilenweise</option><option value="columns" ${cabinet.wiring_order === "columns" ? "selected" : ""}>Spaltenweise</option></select></label>
-        <label class="checkline"><input type="checkbox" data-draft-i="${index}" data-k="serpentine" ${cabinet.serpentine ? "checked" : ""}> Serpentine</label>
+        <label>Strip-Verlauf <select data-draft-i="${index}" data-k="strip_path"><option value="rows" ${(cabinet.strip_path || cabinet.wiring_order) !== "columns" ? "selected" : ""}>Reihe für Reihe</option><option value="columns" ${(cabinet.strip_path || cabinet.wiring_order) === "columns" ? "selected" : ""}>Spalte für Spalte</option></select></label>
+        <label class="checkline"><input type="checkbox" data-draft-i="${index}" data-k="serpentine" ${cabinet.serpentine ? "checked" : ""}> Serpentine / Schlangenlauf</label>
       </div>
-      <p class="meta">${slots.length} Fächer · LED ${cabinet.start_led}-${last} · ${cabinet.slot_width_mm || 0} x ${cabinet.slot_height_mm || 0} mm</p>
+      <p class="meta">${slots.length} Fächer · LED ${cabinet.start_led}-${last} · fortlaufender Stripe · ${cabinet.slot_width_mm || 0} x ${cabinet.slot_height_mm || 0} mm</p>
     `;
     root.appendChild(card);
   });
@@ -691,7 +691,7 @@ function addCabinet(kind = "grid") {
     slot_height_mm: isLarge ? 55 : 38,
     x: 24 + (next % 2) * 160,
     y: 24 + Math.floor(next / 2) * 130,
-    wiring_order: "rows",
+    strip_path: "rows",
     serpentine: false,
     slot_prefix: "Fach",
   };
