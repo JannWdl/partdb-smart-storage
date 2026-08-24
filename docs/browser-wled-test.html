@@ -3,50 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smart Storage WLED Creator</title>
+  <title>Smart Storage WLED Setup</title>
   <style>
-    :root { color-scheme: dark; --bg:#111316; --panel:#1b1f25; --line:#3a434d; --text:#f4f7fb; --muted:#aeb8c5; --accent:#ffd05a; --blue:#79c7ff; --green:#83f3b2; --red:#ff7a7a; }
+    :root { color-scheme: dark; --bg:#101317; --panel:#1a2027; --panel2:#141920; --line:#394552; --text:#f5f7fb; --muted:#a9b5c2; --accent:#ffd05a; --bad:#ff7f7f; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
-    header { padding: 16px 20px; border-bottom: 1px solid var(--line); background: #15181d; }
+    body { margin: 0; font-family: system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--line); background: #151a21; }
     h1, h2, h3, p { margin: 0; }
     h1 { font-size: 22px; }
     h2 { font-size: 16px; margin-bottom: 10px; }
     h3 { font-size: 14px; margin-bottom: 8px; }
     p, small { color: var(--muted); }
-    main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; padding: 16px; }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 16px; padding: 16px; }
     section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
-    button, input, select, textarea { font: inherit; border: 1px solid var(--line); border-radius: 8px; background: #242a32; color: var(--text); min-height: 40px; padding: 9px 11px; }
+    button, input, select { min-height: 40px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: #242c35; color: var(--text); font: inherit; }
     button { cursor: pointer; font-weight: 750; }
-    button.primary { background: #3a300f; color: var(--accent); }
-    textarea { width: 100%; min-height: 260px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    button.primary { background: #3a300f; color: var(--accent); border-color: #6f5b1b; }
+    button.danger { background: #3a1d21; color: var(--bad); border-color: #7f3840; }
     .stack { display: grid; gap: 12px; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .fields label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+    .fields label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
     .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .board { position: relative; height: 460px; overflow: hidden; border: 1px solid #343d47; border-radius: 8px; background: linear-gradient(#242a32 1px, transparent 1px), linear-gradient(90deg, #242a32 1px, transparent 1px), #15191f; background-size: 24px 24px; touch-action: none; }
-    .block { position: absolute; display: grid; grid-template-rows: auto auto 1fr; gap: 4px; padding: 8px; text-align: left; border-color: #50606f; background: rgba(36,42,50,.94); box-shadow: 0 10px 22px rgba(0,0,0,.22); cursor: grab; user-select: none; touch-action: none; }
+    .actions.three { grid-template-columns: repeat(3, 1fr); }
+    .board { position: relative; height: 460px; overflow: hidden; border: 1px solid #343f4b; border-radius: 8px; background: linear-gradient(#242c35 1px, transparent 1px), linear-gradient(90deg, #242c35 1px, transparent 1px), #131820; background-size: 24px 24px; touch-action: none; }
+    .block { position: absolute; display: grid; grid-template-rows: auto auto 1fr; gap: 4px; padding: 8px; text-align: left; border-color: #536273; background: rgba(36,44,53,.96); box-shadow: 0 10px 22px rgba(0,0,0,.24); cursor: grab; user-select: none; touch-action: none; }
     .block.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,208,90,.22), 0 12px 26px rgba(0,0,0,.3); }
-    .block span { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .block span { overflow: hidden; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
     .block i { display: grid; gap: 3px; overflow: hidden; }
     .block i b { min-height: 10px; border: 1px solid rgba(255,208,90,.42); border-radius: 4px; background: rgba(255,208,90,.08); }
     .zones { display: grid; gap: 10px; max-height: 430px; overflow: auto; }
     .zone-grid { display: grid; gap: 7px; }
-    .zone { min-height: 52px; text-align: left; overflow: hidden; }
+    .zone { min-height: 54px; overflow: hidden; text-align: left; }
     .zone b { display: block; font-size: 13px; }
-    .zone small { display: block; font-size: 11px; margin-top: 3px; }
-    .pill { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
-    .status { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #15191f; color: var(--muted); font-size: 13px; }
+    .zone small { display: block; margin-top: 3px; font-size: 11px; }
+    .status { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--muted); font-size: 13px; word-break: break-all; }
     .status b { color: var(--text); }
-    #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+    .pill { display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 13px; }
+    #toast { position: fixed; left: 50%; bottom: 18px; max-width: min(680px, calc(100vw - 32px)); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transform: translateX(-50%); transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); pointer-events: none; }
     #toast.show { opacity: 1; }
-    @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+    @media (max-width: 980px) { main { grid-template-columns: 1fr; } .actions.three { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>Smart Storage WLED Creator</h1>
-    <p>Standalone-Oberfläche für Magazinlayout, LED-Bereiche und direkte WLED-Tests.</p>
+    <h1>Smart Storage WLED Setup</h1>
+    <p>Neuer WLED-Setup-Flow: Layout bauen, Stripe-Länge setzen, Bereiche direkt testen.</p>
   </header>
   <main>
     <div class="stack">
@@ -56,7 +57,7 @@
         <p class="pill">Blöcke ziehen, anklicken und rechts bearbeiten.</p>
       </section>
       <section>
-        <h2>WLED-Zonen Vorschau</h2>
+        <h2>Fächer testen</h2>
         <div class="actions">
           <button id="modeDrawers" class="primary">Fächer</button>
           <button id="modeCabinets">Magazinblöcke</button>
@@ -78,7 +79,7 @@
           <label>Breite/Fach mm <input id="width" type="number" min="1"></label>
           <label>Höhe/Fach mm <input id="height" type="number" min="1"></label>
           <label>Strip-Verlauf <select id="path"><option value="rows">Reihe für Reihe</option><option value="columns">Spalte für Spalte</option></select></label>
-          <label>Serpentine / Schlangenlauf <select id="serpentine"><option value="false">Nein</option><option value="true">Ja</option></select></label>
+          <label>Serpentine <select id="serpentine"><option value="false">Aus</option><option value="true">An</option></select></label>
         </div>
         <div class="actions" style="margin-top:10px">
           <button id="addGrid">Raster hinzufügen</button>
@@ -86,45 +87,35 @@
         </div>
       </section>
       <section>
-        <h2>WLED Integration</h2>
+        <h2>WLED Controller</h2>
         <div class="fields">
           <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
           <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="96"></label>
-          <label>Manuell Start <input id="manualStart" type="number" min="0" value="0"></label>
-          <label>Manuell Stop <input id="manualStop" type="number" min="1" value="16"></label>
           <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
-          <label>Testfarbe <select id="testColor"><option value="cyan">Cyan</option><option value="blue">Blau</option><option value="yellow">Gelb</option><option value="green">Grün</option><option value="red">Rot</option></select></label>
+          <label>Farbe <select id="color"><option value="cyan">Cyan</option><option value="blue">Blau</option><option value="yellow">Gelb</option><option value="green">Grün</option><option value="red">Rot</option><option value="white">Weiß</option></select></label>
+          <label>Test Start <input id="testStart" type="number" min="0" value="0"></label>
+          <label>Test Stop <input id="testStop" type="number" min="1" value="16"></label>
         </div>
         <div class="status" style="margin-top:10px">
-          <b id="wledStatus">Nicht verbunden</b>
-          <span id="wledLastUrl">Noch kein Befehl gesendet.</span>
+          <b id="statusTitle">Bereit</b>
+          <span id="statusDetail">Noch kein WLED-Befehl gesendet.</span>
         </div>
-        <div class="actions" style="margin-top:10px">
-          <button id="connectWled" class="primary">Verbinden</button>
-          <button id="allOn">Alle LEDs testen</button>
-          <button id="allOff">LEDs aus</button>
-          <button id="sendWled">Zonen anzeigen</button>
-          <button id="manualRange">Bereich testen</button>
-          <button id="copyPayload">Payload kopieren</button>
+        <div class="actions three" style="margin-top:10px">
+          <button id="connect" class="primary">Verbinden</button>
+          <button id="allOn">Alles testen</button>
+          <button id="rangeTest">Bereich testen</button>
+          <button id="showZones">Zonen anzeigen</button>
+          <button id="clearSegments">Segmente löschen</button>
+          <button id="off" class="danger">Aus</button>
         </div>
-        <p class="pill">Alle sichtbaren Tests nutzen die WLED-HTTP-API direkt im Browser. Stop-LED ist exklusiv: 0-16 leuchtet LED 0 bis 15.</p>
-      </section>
-      <section>
-        <h2>JSON Payload</h2>
-        <textarea id="payload" readonly></textarea>
+        <p class="pill">Stop-LED ist exklusiv: Start 0, Stop 16 bedeutet LED 0 bis 15.</p>
       </section>
     </aside>
   </main>
   <div id="toast"></div>
   <script>
+    const colors = { cyan:[0,150,255], blue:[0,0,255], yellow:[255,180,0], green:[0,255,90], red:[255,0,0], white:[255,255,255] };
     const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
-    const testColors = {
-      cyan: [0, 140, 255],
-      blue: [0, 0, 255],
-      yellow: [255, 180, 0],
-      green: [0, 255, 90],
-      red: [255, 0, 0]
-    };
     const state = {
       mode: "drawers",
       selected: "main",
@@ -134,289 +125,306 @@
       ]
     };
     const $ = (id) => document.getElementById(id);
-    function toast(text) { const el = $("toast"); el.textContent = text; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2400); }
-    function setStatus(title, detail) {
-      $("wledStatus").textContent = title;
-      $("wledLastUrl").textContent = detail;
+
+    function toast(text) {
+      const el = $("toast");
+      el.textContent = text;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 2400);
     }
-    function slug(value) { return String(value || "magazin").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "magazin"; }
-    function size(c) { return { width: Math.max(88, Math.min(340, c.columns * Math.max(28, c.slot_width_mm * .55))), height: Math.max(58, Math.min(260, c.rows * Math.max(28, c.slot_height_mm * .7))) }; }
-    function slotCount(c) {
-      return Math.max(1, Number(c.rows || 1) * Number(c.columns || 1));
+
+    function status(title, detail) {
+      $("statusTitle").textContent = title;
+      $("statusDetail").textContent = detail;
     }
-    function cabinetStop(c) {
-      return Number(c.stop_led || 0) || Number(c.start_led || 0) + slotCount(c) * Number(c.leds_per_slot || 1);
+
+    function slug(value) {
+      return String(value || "magazin").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "magazin";
     }
+
+    function slotCount(cabinet) {
+      return Math.max(1, Number(cabinet.rows || 1) * Number(cabinet.columns || 1));
+    }
+
+    function cabinetStop(cabinet) {
+      return Number(cabinet.stop_led || 0) || Number(cabinet.start_led || 0) + slotCount(cabinet) * Number(cabinet.leds_per_slot || 1);
+    }
+
+    function cabinetSize(cabinet) {
+      return {
+        width: Math.max(88, Math.min(340, Number(cabinet.columns) * Math.max(28, Number(cabinet.slot_width_mm || 55) * .55))),
+        height: Math.max(58, Math.min(260, Number(cabinet.rows) * Math.max(28, Number(cabinet.slot_height_mm || 38) * .7)))
+      };
+    }
+
     function slots() {
-      const out = []; let n = 1;
-      for (const c of state.cabinets) {
-        for (let r = 0; r < c.rows; r++) for (let col = 0; col < c.columns; col++) {
-          let pathIndex;
-          const stripPath = c.strip_path || c.wiring_order || "rows";
-          if (stripPath === "columns") {
-            const pathRow = c.serpentine && col % 2 ? c.rows - 1 - r : r;
-            pathIndex = col * c.rows + pathRow;
-          } else {
-            const pathCol = c.serpentine && r % 2 ? c.columns - 1 - col : col;
-            pathIndex = r * c.columns + pathCol;
+      const out = [];
+      let globalIndex = 1;
+      for (const cabinet of state.cabinets) {
+        const rows = Number(cabinet.rows || 1);
+        const columns = Number(cabinet.columns || 1);
+        const ledsPerSlot = Number(cabinet.leds_per_slot || 1);
+        const stripPath = cabinet.strip_path || "rows";
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < columns; col++) {
+            let pathIndex;
+            if (stripPath === "columns") {
+              const pathRow = cabinet.serpentine && col % 2 ? rows - 1 - row : row;
+              pathIndex = col * rows + pathRow;
+            } else {
+              const pathCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
+              pathIndex = row * columns + pathCol;
+            }
+            const ledStart = Number(cabinet.start_led || 0) + pathIndex * ledsPerSlot;
+            out.push({
+              id: `${cabinet.id}-${row + 1}-${col + 1}`,
+              label: `Fach ${globalIndex++}`,
+              cabinet_id: cabinet.id,
+              cabinet_name: cabinet.name,
+              row: row + 1,
+              column: col + 1,
+              led_start: ledStart,
+              led_stop: ledStart + ledsPerSlot
+            });
           }
-          const start = c.start_led + (pathIndex * c.leds_per_slot);
-          out.push({ id:`${c.id}-${r+1}-${col+1}`, label:`Fach ${n++}`, cabinet_id:c.id, cabinet_name:c.name, row:r+1, column:col+1, led_start:start, led_stop:start+c.leds_per_slot });
         }
       }
       return out;
     }
-    function layoutLedCount() {
-      return Math.max(...slots().map(s => s.led_stop), 1);
-    }
+
     function zones() {
-      const s = slots();
-      if (state.mode === "cabinets") return state.cabinets.map((c, i) => {
-        const cs = s.filter(x => x.cabinet_id === c.id);
-        return { id:c.id, label:c.name, cabinet_id:c.id, led_start:Math.min(...cs.map(x => x.led_start)), led_stop:Math.max(...cs.map(x => x.led_stop)), color:palette[i % palette.length] };
-      });
-      return s.map((slot, i) => ({ ...slot, color:palette[i % palette.length] }));
-    }
-    function payload() {
-      const bri = Number($("brightness").value || 180);
-      const activeZones = zones();
-      return activeZones.length <= 31 ? segmentPayload(activeZones, bri) : pixelPayload(activeZones, bri);
-    }
-    function renderBoard() {
-      const board = $("board"); board.innerHTML = "";
-      for (const c of state.cabinets) {
-        const block = document.createElement("button");
-        const s = size(c);
-        block.className = `block${c.id === state.selected ? " selected" : ""}`;
-        block.style.left = `${c.x}px`; block.style.top = `${c.y}px`; block.style.width = `${s.width}px`; block.style.height = `${s.height}px`;
-        block.innerHTML = `<span>${c.name}</span><small>${c.rows} x ${c.columns} · LED ${c.start_led}</small><i style="grid-template-columns:repeat(${c.columns},1fr)">${Array.from({length:c.rows*c.columns}).map(() => "<b></b>").join("")}</i>`;
-        block.onpointerdown = (e) => drag(e, c, block, board);
-        board.appendChild(block);
+      const allSlots = slots();
+      if (state.mode === "cabinets") {
+        return state.cabinets.map((cabinet, index) => {
+          const cabinetSlots = allSlots.filter(slot => slot.cabinet_id === cabinet.id);
+          return {
+            id: cabinet.id,
+            label: cabinet.name,
+            cabinet_id: cabinet.id,
+            led_start: Math.min(...cabinetSlots.map(slot => slot.led_start)),
+            led_stop: Math.max(...cabinetSlots.map(slot => slot.led_stop)),
+            color: palette[index % palette.length]
+          };
+        });
       }
+      return allSlots.map((slot, index) => ({ ...slot, color: palette[index % palette.length] }));
     }
-    function drag(e, c, block, board) {
-      e.preventDefault();
-      state.selected = c.id;
-      fillInspector();
-      document.querySelectorAll(".block").forEach(el => el.classList.toggle("selected", el === block));
-      const sx = e.clientX, sy = e.clientY, ox = c.x, oy = c.y, sz = size(c);
-      block.setPointerCapture(e.pointerId);
-      block.onpointermove = (m) => {
-        c.x = Math.round(Math.max(0, Math.min(board.clientWidth - sz.width - 6, ox + m.clientX - sx)));
-        c.y = Math.round(Math.max(0, Math.min(board.clientHeight - sz.height - 6, oy + m.clientY - sy)));
-        block.style.left = `${c.x}px`; block.style.top = `${c.y}px`;
-      };
-      block.onpointerup = () => { block.onpointermove = null; renderAll(); };
+
+    function layoutLedCount() {
+      return Math.max(...slots().map(slot => slot.led_stop), 1);
     }
-    function fillInspector() {
-      const c = state.cabinets.find(x => x.id === state.selected) || state.cabinets[0];
-      ["name","id"].forEach(k => $(k).value = c[k]);
-      $("rows").value = c.rows; $("columns").value = c.columns; $("start").value = c.start_led; $("stop").value = cabinetStop(c); $("leds").value = c.leds_per_slot; $("width").value = c.slot_width_mm; $("height").value = c.slot_height_mm;
-      $("path").value = c.strip_path || c.wiring_order || "rows"; $("serpentine").value = c.serpentine ? "true" : "false";
+
+    function selectedColor() {
+      return colors[$("color").value] || colors.cyan;
     }
-    function readInspector() {
-      const c = state.cabinets.find(x => x.id === state.selected); if (!c) return;
-      c.name = $("name").value; c.id = slug($("id").value); state.selected = c.id;
-      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0); c.leds_per_slot = Number($("leds").value || 1); c.stop_led = Math.max(c.start_led + 1, Number($("stop").value || cabinetStop(c))); c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
-      c.strip_path = $("path").value; delete c.wiring_order; c.serpentine = $("serpentine").value === "true";
-      renderAll();
-    }
-    function readStopInspector() {
-      const c = state.cabinets.find(x => x.id === state.selected); if (!c) return;
-      c.name = $("name").value; c.id = slug($("id").value); state.selected = c.id;
-      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0);
-      c.stop_led = Math.max(c.start_led + 1, Number($("stop").value || c.start_led + 1));
-      c.leds_per_slot = Math.max(1, Math.ceil((c.stop_led - c.start_led) / slotCount(c)));
-      c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
-      c.strip_path = $("path").value; delete c.wiring_order; c.serpentine = $("serpentine").value === "true";
-      renderAll();
-    }
-    function renderZones() {
-      $("modeDrawers").classList.toggle("primary", state.mode === "drawers");
-      $("modeCabinets").classList.toggle("primary", state.mode === "cabinets");
-      const root = $("zones"); root.innerHTML = "";
-      if (state.mode === "drawers") {
-        for (const c of state.cabinets) {
-          const block = document.createElement("div");
-          block.innerHTML = `<h3>${c.name}</h3>`;
-          const grid = document.createElement("div");
-          grid.className = "zone-grid"; grid.style.gridTemplateColumns = `repeat(${c.columns}, minmax(46px, 1fr))`;
-          zones().filter(z => z.cabinet_id === c.id).forEach(z => grid.appendChild(zoneButton(z)));
-          block.appendChild(grid); root.appendChild(block);
-        }
-      } else zones().forEach(z => root.appendChild(zoneButton(z)));
-      $("totalLeds").value = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
-      $("payload").value = JSON.stringify(payload(), null, 2);
-    }
-    function zoneButton(z) {
-      const b = document.createElement("button");
-      b.className = "zone"; b.style.borderColor = `rgb(${z.color.join(",")})`; b.style.background = `linear-gradient(135deg, rgba(${z.color.join(",")}, .26), rgba(36,42,50,.96))`;
-      b.innerHTML = `<b>${z.label}</b><small>LED ${z.led_start}-${z.led_stop - 1}</small>`;
-      b.onclick = () => sendHttpZone(z);
-      return b;
-    }
-    function clearSegments() {
-      return Array.from({ length: 31 }).map((_, i) => ({ id:i + 1, stop:0 }));
-    }
-    function segmentPayload(activeZones, bri = 180) {
-      const activeSegments = activeZones.slice(0, 31).map((z, index) => ({
-        id:index,
-        start:z.led_start,
-        stop:z.led_stop,
-        on:true,
-        bri,
-        col:[z.color || [0,140,255], [0,0,0], [0,0,0]],
-        fx:0,
-        sx:128,
-        ix:128,
-        pal:0
-      }));
-      const clear = Array.from({ length: 32 - activeSegments.length }).map((_, i) => ({ id:activeSegments.length + i, stop:0 }));
-      return { on:true, bri, transition:0, mainseg:0, seg:[...activeSegments, ...clear] };
-    }
-    function pixelPayload(activeZones, bri = 180) {
-      const totalStop = Math.max(...slots().map(s => s.led_stop), ...activeZones.map(z => z.led_stop), 1);
-      const colors = new Map();
-      for (const z of activeZones) {
-        for (let led = z.led_start; led < z.led_stop; led++) colors.set(led, z.color || [0,140,255]);
-      }
-      const items = [];
-      for (let led = 0; led < totalStop; led++) items.push(led, colors.get(led) || [0,0,0]);
-      return {
-        on:true,
-        bri,
-        transition:0,
-        mainseg:0,
-        seg:[
-          ...clearSegments(),
-          { id:0, start:0, stop:totalStop, on:true, bri, fx:0, sx:128, ix:128, pal:0, i:items }
-        ]
-      };
-    }
-    function httpApiUrl(params) {
+
+    function wledUrl(params) {
       const base = $("wledUrl").value.replace(/\/$/, "");
       const query = Object.entries({ ...params, _: Date.now() })
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
         .join("&");
       return `${base}/win&${query}`;
     }
-    function selectedColor() {
-      return testColors[$("testColor").value] || testColors.cyan;
+
+    async function sendWled(params, label, silent = false) {
+      const url = wledUrl(params);
+      status("Sende an WLED ...", url);
+      await fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" });
+      status("Gesendet", url);
+      if (!silent) toast(label);
     }
-    async function sendHttpApi(params, okText, silent = false) {
-      const url = httpApiUrl(params);
-      setStatus("Sende an WLED ...", url);
-      await fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" });
-      setStatus("WLED-Befehl gesendet", url);
-      if (!silent) toast(`${okText} · HTTP-Direktmodus`);
+
+    function segmentParams(index, start, stop, rgb, selectedMode) {
+      return { T:1, A:Number($("brightness").value || 180), FX:0, SS:index, SV:selectedMode, S:start, S2:stop, SB:255, R:rgb[0], G:rgb[1], B:rgb[2] };
     }
+
     async function connectWled() {
-      const base = $("wledUrl").value.replace(/\/$/, "");
-      const url = `${base}/win&_=${Date.now()}`;
-      setStatus("Verbinde ...", url);
-      await fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" });
-      setStatus("WLED erreichbar", url);
-      toast("WLED erreichbar");
+      await sendWled({ A: Number($("brightness").value || 180) }, "WLED erreichbar");
     }
-    async function sendHttpZone(z) {
-      const [r, g, b] = selectedColor();
-      await sendHttpApi({
-        T:1,
-        A:220,
-        FX:0,
-        SS:0,
-        SV:2,
-        S:z.led_start,
-        S2:z.led_stop,
-        SB:255,
-        R:r,
-        G:g,
-        B:b
-      }, `${z.label}: LED ${z.led_start}-${z.led_stop - 1}`);
-    }
-    async function sendAllOn() {
+
+    async function clearWledSegments() {
       const total = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
-      const [r, g, b] = selectedColor();
-      await sendHttpApi({
-        T:1,
-        A:Number($("brightness").value || 180),
-        FX:0,
-        SS:0,
-        SV:2,
-        S:0,
-        S2:total,
-        SB:255,
-        R:r,
-        G:g,
-        B:b
-      }, `Alle LEDs bis ${total - 1}`);
+      await sendWled(segmentParams(0, 0, total, selectedColor(), 2), `Segment 0 gesetzt: LED 0-${total - 1}`, true);
+      await sendWled({ T: 0 }, "Segmente gelöscht und LEDs aus");
     }
-    async function sendAllOff() {
-      await sendHttpApi({ T:0 }, "LEDs aus");
+
+    async function allOn() {
+      const total = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
+      await sendWled(segmentParams(0, 0, total, selectedColor(), 2), `Alle LEDs getestet: 0-${total - 1}`);
     }
-    async function sendManualRange() {
-      const start = Math.max(0, Number($("manualStart").value || 0));
-      const stop = Math.max(start + 1, Number($("manualStop").value || start + 1));
-      const [r, g, b] = selectedColor();
-      await sendHttpApi({
-        T:1,
-        A:Number($("brightness").value || 180),
-        FX:0,
-        SS:0,
-        SV:2,
-        S:start,
-        S2:stop,
-        SB:255,
-        R:r,
-        G:g,
-        B:b
-      }, `Bereich LED ${start}-${stop - 1}`);
+
+    async function rangeTest() {
+      const start = Math.max(0, Number($("testStart").value || 0));
+      const stop = Math.max(start + 1, Number($("testStop").value || start + 1));
+      await sendWled(segmentParams(0, start, stop, selectedColor(), 2), `Bereich getestet: LED ${start}-${stop - 1}`);
     }
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-    async function sendZonesToWled() {
-      const active = zones().slice(0, 16);
-      if (!active.length) return;
-      for (let index = 0; index < active.length; index++) {
-        const z = active[index];
-        const [r, g, b] = z.color || selectedColor();
-        await sendHttpApi({
-          T:1,
-          A:Number($("brightness").value || 180),
-          FX:0,
-          SS:index,
-          SV:index === 0 ? 2 : 1,
-          S:z.led_start,
-          S2:z.led_stop,
-          SB:255,
-          R:r,
-          G:g,
-          B:b
-        }, `${active.length} Zonen an WLED`, true);
-        await sleep(55);
+
+    async function showZones() {
+      const activeZones = zones().slice(0, 16);
+      if (!activeZones.length) return;
+      for (let index = 0; index < activeZones.length; index++) {
+        const zone = activeZones[index];
+        await sendWled(segmentParams(index, zone.led_start, zone.led_stop, zone.color, index === 0 ? 2 : 1), "Zone gesendet", true);
+        await new Promise(resolve => setTimeout(resolve, 60));
       }
-      toast(`${active.length} Zonen an WLED gesendet.`);
-      if (zones().length > active.length) toast(`Erste ${active.length} Zonen gesendet. WLED-Segmentlimit beachten.`);
+      toast(`${activeZones.length} Zonen angezeigt`);
     }
-    function add(kind) {
-      const n = state.cabinets.length + 1, large = kind === "large", maxLed = Math.max(...slots().map(s => s.led_stop), 0);
-      const c = { id: large ? `grossfach-${n}` : `magazin-${n}`, name: large ? `Großes Fach ${n}` : `Magazin ${n}`, rows: large ? 1 : 3, columns: large ? 1 : 4, start_led:maxLed, leds_per_slot: large ? 16 : 4, slot_width_mm: large ? 220 : 55, slot_height_mm: large ? 55 : 38, strip_path:"rows", serpentine:false, x:36 + n * 18, y:36 + n * 18 };
-      state.cabinets.push(c); state.selected = c.id; renderAll();
+
+    function renderBoard() {
+      const board = $("board");
+      board.innerHTML = "";
+      for (const cabinet of state.cabinets) {
+        const block = document.createElement("button");
+        const size = cabinetSize(cabinet);
+        block.className = `block${cabinet.id === state.selected ? " selected" : ""}`;
+        block.style.left = `${Number(cabinet.x || 0)}px`;
+        block.style.top = `${Number(cabinet.y || 0)}px`;
+        block.style.width = `${size.width}px`;
+        block.style.height = `${size.height}px`;
+        block.innerHTML = `<span>${cabinet.name}</span><small>${cabinet.rows} x ${cabinet.columns} · LED ${cabinet.start_led}-${cabinetStop(cabinet) - 1}</small><i style="grid-template-columns:repeat(${cabinet.columns},1fr)">${Array.from({ length: Number(cabinet.rows) * Number(cabinet.columns) }).map(() => "<b></b>").join("")}</i>`;
+        block.onpointerdown = (event) => dragCabinet(event, cabinet, block, board);
+        board.appendChild(block);
+      }
     }
-    function renderAll() { renderBoard(); fillInspector(); renderZones(); }
-    ["name","id","rows","columns","start","leds","width","height","path","serpentine"].forEach(id => $(id).oninput = readInspector);
-    $("stop").oninput = readStopInspector;
+
+    function dragCabinet(event, cabinet, block, board) {
+      event.preventDefault();
+      state.selected = cabinet.id;
+      fillInspector();
+      document.querySelectorAll(".block").forEach(item => item.classList.toggle("selected", item === block));
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const originX = Number(cabinet.x || 0);
+      const originY = Number(cabinet.y || 0);
+      const size = cabinetSize(cabinet);
+      block.setPointerCapture(event.pointerId);
+      block.onpointermove = (moveEvent) => {
+        cabinet.x = Math.round(Math.max(0, Math.min(board.clientWidth - size.width - 6, originX + moveEvent.clientX - startX)));
+        cabinet.y = Math.round(Math.max(0, Math.min(board.clientHeight - size.height - 6, originY + moveEvent.clientY - startY)));
+        block.style.left = `${cabinet.x}px`;
+        block.style.top = `${cabinet.y}px`;
+      };
+      block.onpointerup = () => {
+        block.onpointermove = null;
+        block.onpointerup = null;
+        renderAll();
+      };
+    }
+
+    function fillInspector() {
+      const cabinet = state.cabinets.find(item => item.id === state.selected) || state.cabinets[0];
+      $("name").value = cabinet.name;
+      $("id").value = cabinet.id;
+      $("rows").value = cabinet.rows;
+      $("columns").value = cabinet.columns;
+      $("start").value = cabinet.start_led;
+      $("stop").value = cabinetStop(cabinet);
+      $("leds").value = cabinet.leds_per_slot;
+      $("width").value = cabinet.slot_width_mm;
+      $("height").value = cabinet.slot_height_mm;
+      $("path").value = cabinet.strip_path || "rows";
+      $("serpentine").value = cabinet.serpentine ? "true" : "false";
+    }
+
+    function readInspector(useStop = false) {
+      const cabinet = state.cabinets.find(item => item.id === state.selected);
+      if (!cabinet) return;
+      cabinet.name = $("name").value;
+      cabinet.id = slug($("id").value);
+      state.selected = cabinet.id;
+      cabinet.rows = Math.max(1, Number($("rows").value || 1));
+      cabinet.columns = Math.max(1, Number($("columns").value || 1));
+      cabinet.start_led = Math.max(0, Number($("start").value || 0));
+      if (useStop) {
+        cabinet.stop_led = Math.max(cabinet.start_led + 1, Number($("stop").value || cabinet.start_led + 1));
+        cabinet.leds_per_slot = Math.max(1, Math.ceil((cabinet.stop_led - cabinet.start_led) / slotCount(cabinet)));
+      } else {
+        cabinet.leds_per_slot = Math.max(1, Number($("leds").value || 1));
+        cabinet.stop_led = Math.max(cabinet.start_led + 1, Number($("stop").value || cabinetStop(cabinet)));
+      }
+      cabinet.slot_width_mm = Math.max(1, Number($("width").value || 55));
+      cabinet.slot_height_mm = Math.max(1, Number($("height").value || 38));
+      cabinet.strip_path = $("path").value;
+      cabinet.serpentine = $("serpentine").value === "true";
+      renderAll();
+    }
+
+    function renderZones() {
+      $("modeDrawers").classList.toggle("primary", state.mode === "drawers");
+      $("modeCabinets").classList.toggle("primary", state.mode === "cabinets");
+      const root = $("zones");
+      root.innerHTML = "";
+      if (state.mode === "drawers") {
+        for (const cabinet of state.cabinets) {
+          const block = document.createElement("div");
+          const grid = document.createElement("div");
+          block.innerHTML = `<h3>${cabinet.name}</h3>`;
+          grid.className = "zone-grid";
+          grid.style.gridTemplateColumns = `repeat(${cabinet.columns}, minmax(46px, 1fr))`;
+          zones().filter(zone => zone.cabinet_id === cabinet.id).forEach(zone => grid.appendChild(zoneButton(zone)));
+          block.appendChild(grid);
+          root.appendChild(block);
+        }
+      } else {
+        zones().forEach(zone => root.appendChild(zoneButton(zone)));
+      }
+      $("totalLeds").value = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
+    }
+
+    function zoneButton(zone) {
+      const button = document.createElement("button");
+      button.className = "zone";
+      button.style.borderColor = `rgb(${zone.color.join(",")})`;
+      button.style.background = `linear-gradient(135deg, rgba(${zone.color.join(",")}, .26), rgba(36,44,53,.96))`;
+      button.innerHTML = `<b>${zone.label}</b><small>LED ${zone.led_start}-${zone.led_stop - 1}</small>`;
+      button.onclick = () => sendWled(segmentParams(0, zone.led_start, zone.led_stop, selectedColor(), 2), `${zone.label}: LED ${zone.led_start}-${zone.led_stop - 1}`);
+      return button;
+    }
+
+    function addCabinet(kind) {
+      const index = state.cabinets.length + 1;
+      const large = kind === "large";
+      const maxLed = Math.max(...slots().map(slot => slot.led_stop), 0);
+      const cabinet = {
+        id: large ? `grossfach-${index}` : `magazin-${index}`,
+        name: large ? `Großes Fach ${index}` : `Magazin ${index}`,
+        rows: large ? 1 : 3,
+        columns: large ? 1 : 4,
+        start_led: maxLed,
+        leds_per_slot: large ? 16 : 4,
+        slot_width_mm: large ? 220 : 55,
+        slot_height_mm: large ? 55 : 38,
+        strip_path: "rows",
+        serpentine: false,
+        x: 36 + index * 18,
+        y: 36 + index * 18
+      };
+      state.cabinets.push(cabinet);
+      state.selected = cabinet.id;
+      renderAll();
+    }
+
+    function renderAll() {
+      renderBoard();
+      fillInspector();
+      renderZones();
+    }
+
+    ["name", "id", "rows", "columns", "start", "leds", "width", "height", "path", "serpentine"].forEach(id => {
+      $(id).oninput = () => readInspector(false);
+    });
+    $("stop").oninput = () => readInspector(true);
     $("totalLeds").oninput = renderZones;
     $("modeDrawers").onclick = () => { state.mode = "drawers"; renderZones(); };
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
-    $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
-    $("connectWled").onclick = () => connectWled().catch(e => toast(`Verbinden fehlgeschlagen: ${e.message}`));
-    $("sendWled").onclick = () => sendZonesToWled().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
-    $("allOn").onclick = () => sendAllOn().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
-    $("allOff").onclick = () => sendAllOff().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
-    $("manualRange").onclick = () => sendManualRange().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
-    $("copyPayload").onclick = async () => { await navigator.clipboard.writeText($("payload").value); toast("Payload kopiert"); };
+    $("addGrid").onclick = () => addCabinet("grid");
+    $("addLarge").onclick = () => addCabinet("large");
+    $("connect").onclick = () => connectWled().catch(error => toast(`Fehler: ${error.message}`));
+    $("allOn").onclick = () => allOn().catch(error => toast(`Fehler: ${error.message}`));
+    $("rangeTest").onclick = () => rangeTest().catch(error => toast(`Fehler: ${error.message}`));
+    $("showZones").onclick = () => showZones().catch(error => toast(`Fehler: ${error.message}`));
+    $("clearSegments").onclick = () => clearWledSegments().catch(error => toast(`Fehler: ${error.message}`));
+    $("off").onclick = () => sendWled({ T:0 }, "LEDs aus").catch(error => toast(`Fehler: ${error.message}`));
     renderAll();
   </script>
 </body>
