@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Smart Storage WLED Browser-Test</title>
+  <title>Smart Storage WLED Creator</title>
   <style>
     :root { color-scheme: dark; --bg:#111316; --panel:#1b1f25; --line:#3a434d; --text:#f4f7fb; --muted:#aeb8c5; --accent:#ffd05a; --blue:#79c7ff; --green:#83f3b2; --red:#ff7a7a; }
     * { box-sizing: border-box; }
@@ -36,6 +36,8 @@
     .zone b { display: block; font-size: 13px; }
     .zone small { display: block; font-size: 11px; margin-top: 3px; }
     .pill { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .status { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #15191f; color: var(--muted); font-size: 13px; }
+    .status b { color: var(--text); }
     #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
     #toast.show { opacity: 1; }
     @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
@@ -43,8 +45,8 @@
 </head>
 <body>
   <header>
-    <h1>Smart Storage WLED Browser-Test</h1>
-    <p>Standalone-Testseite ohne Raspberry-Pi-Flash, ohne Docker und ohne Backend.</p>
+    <h1>Smart Storage WLED Creator</h1>
+    <p>Standalone-Oberfläche für Magazinlayout, LED-Bereiche und direkte WLED-Tests.</p>
   </header>
   <main>
     <div class="stack">
@@ -84,21 +86,28 @@
         </div>
       </section>
       <section>
-        <h2>WLED senden</h2>
+        <h2>WLED Integration</h2>
         <div class="fields">
           <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
           <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="96"></label>
           <label>Manuell Start <input id="manualStart" type="number" min="0" value="0"></label>
           <label>Manuell Stop <input id="manualStop" type="number" min="1" value="16"></label>
           <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
+          <label>Testfarbe <select id="testColor"><option value="cyan">Cyan</option><option value="blue">Blau</option><option value="yellow">Gelb</option><option value="green">Grün</option><option value="red">Rot</option></select></label>
+        </div>
+        <div class="status" style="margin-top:10px">
+          <b id="wledStatus">Nicht verbunden</b>
+          <span id="wledLastUrl">Noch kein Befehl gesendet.</span>
         </div>
         <div class="actions" style="margin-top:10px">
-          <button id="sendWled" class="primary">An WLED senden</button>
-          <button id="allBlue">Alles blau testen</button>
+          <button id="connectWled" class="primary">Verbinden</button>
+          <button id="allOn">Alle LEDs testen</button>
+          <button id="allOff">LEDs aus</button>
+          <button id="sendWled">Zonen anzeigen</button>
           <button id="manualRange">Bereich testen</button>
           <button id="copyPayload">Payload kopieren</button>
         </div>
-        <p class="pill">Fach-Klicks und Alles blau nutzen die einfache WLED-HTTP-API. Die JSON-Vorschau ist zum Kopieren für die App gedacht.</p>
+        <p class="pill">Alle sichtbaren Tests nutzen die WLED-HTTP-API direkt im Browser. Stop-LED ist exklusiv: 0-16 leuchtet LED 0 bis 15.</p>
       </section>
       <section>
         <h2>JSON Payload</h2>
@@ -109,6 +118,13 @@
   <div id="toast"></div>
   <script>
     const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
+    const testColors = {
+      cyan: [0, 140, 255],
+      blue: [0, 0, 255],
+      yellow: [255, 180, 0],
+      green: [0, 255, 90],
+      red: [255, 0, 0]
+    };
     const state = {
       mode: "drawers",
       selected: "main",
@@ -119,6 +135,10 @@
     };
     const $ = (id) => document.getElementById(id);
     function toast(text) { const el = $("toast"); el.textContent = text; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2400); }
+    function setStatus(title, detail) {
+      $("wledStatus").textContent = title;
+      $("wledLastUrl").textContent = detail;
+    }
     function slug(value) { return String(value || "magazin").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "magazin"; }
     function size(c) { return { width: Math.max(88, Math.min(340, c.columns * Math.max(28, c.slot_width_mm * .55))), height: Math.max(58, Math.min(260, c.rows * Math.max(28, c.slot_height_mm * .7))) }; }
     function slotCount(c) {
@@ -273,26 +293,6 @@
         ]
       };
     }
-    function testPayload(z) {
-      return {
-        on:true,
-        bri:220,
-        transition:0,
-        mainseg:0,
-        seg:[{
-          id:0,
-          start:z.led_start,
-          stop:z.led_stop,
-          on:true,
-          bri:255,
-          col:[[0,140,255], [0,0,0], [0,0,0]],
-          fx:0,
-          sx:128,
-          ix:128,
-          pal:0
-        }]
-      };
-    }
     function httpApiUrl(params) {
       const base = $("wledUrl").value.replace(/\/$/, "");
       const query = Object.entries({ ...params, _: Date.now() })
@@ -300,11 +300,26 @@
         .join("&");
       return `${base}/win&${query}`;
     }
-    async function sendHttpApi(params, okText) {
-      await fetch(httpApiUrl(params), { method:"GET", mode:"no-cors", cache:"no-store" });
-      toast(`${okText} · HTTP-Direktmodus`);
+    function selectedColor() {
+      return testColors[$("testColor").value] || testColors.cyan;
+    }
+    async function sendHttpApi(params, okText, silent = false) {
+      const url = httpApiUrl(params);
+      setStatus("Sende an WLED ...", url);
+      await fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" });
+      setStatus("WLED-Befehl gesendet", url);
+      if (!silent) toast(`${okText} · HTTP-Direktmodus`);
+    }
+    async function connectWled() {
+      const base = $("wledUrl").value.replace(/\/$/, "");
+      const url = `${base}/win&_=${Date.now()}`;
+      setStatus("Verbinde ...", url);
+      await fetch(url, { method:"GET", mode:"no-cors", cache:"no-store" });
+      setStatus("WLED erreichbar", url);
+      toast("WLED erreichbar");
     }
     async function sendHttpZone(z) {
+      const [r, g, b] = selectedColor();
       await sendHttpApi({
         T:1,
         A:220,
@@ -314,53 +329,75 @@
         S:z.led_start,
         S2:z.led_stop,
         SB:255,
-        R:0,
-        G:140,
-        B:255
+        R:r,
+        G:g,
+        B:b
       }, `${z.label}: LED ${z.led_start}-${z.led_stop - 1}`);
     }
-    async function sendAllBlue() {
+    async function sendAllOn() {
       const total = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
+      const [r, g, b] = selectedColor();
       await sendHttpApi({
         T:1,
-        A:220,
+        A:Number($("brightness").value || 180),
         FX:0,
         SS:0,
         SV:2,
         S:0,
         S2:total,
         SB:255,
-        R:0,
-        G:0,
-        B:255
-      }, `Alles blau bis LED ${total - 1}`);
+        R:r,
+        G:g,
+        B:b
+      }, `Alle LEDs bis ${total - 1}`);
+    }
+    async function sendAllOff() {
+      await sendHttpApi({ T:0 }, "LEDs aus");
     }
     async function sendManualRange() {
       const start = Math.max(0, Number($("manualStart").value || 0));
       const stop = Math.max(start + 1, Number($("manualStop").value || start + 1));
+      const [r, g, b] = selectedColor();
       await sendHttpApi({
         T:1,
-        A:220,
+        A:Number($("brightness").value || 180),
         FX:0,
         SS:0,
         SV:2,
         S:start,
         S2:stop,
         SB:255,
-        R:255,
-        G:180,
-        B:0
+        R:r,
+        G:g,
+        B:b
       }, `Bereich LED ${start}-${stop - 1}`);
     }
-    async function sendPayload(data, okText = "Payload gesendet") {
-      const url = $("wledUrl").value.replace(/\/$/, "");
-      await fetch(`${url}/json/state`, {
-        method:"POST",
-        mode:"no-cors",
-        headers:{"Content-Type":"text/plain;charset=UTF-8"},
-        body:JSON.stringify(data)
-      });
-      toast(`${okText} · Browser-Direktmodus`);
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    async function sendZonesToWled() {
+      const active = zones().slice(0, 16);
+      if (!active.length) return;
+      for (let index = 0; index < active.length; index++) {
+        const z = active[index];
+        const [r, g, b] = z.color || selectedColor();
+        await sendHttpApi({
+          T:1,
+          A:Number($("brightness").value || 180),
+          FX:0,
+          SS:index,
+          SV:index === 0 ? 2 : 1,
+          S:z.led_start,
+          S2:z.led_stop,
+          SB:255,
+          R:r,
+          G:g,
+          B:b
+        }, `${active.length} Zonen an WLED`, true);
+        await sleep(55);
+      }
+      toast(`${active.length} Zonen an WLED gesendet.`);
+      if (zones().length > active.length) toast(`Erste ${active.length} Zonen gesendet. WLED-Segmentlimit beachten.`);
     }
     function add(kind) {
       const n = state.cabinets.length + 1, large = kind === "large", maxLed = Math.max(...slots().map(s => s.led_stop), 0);
@@ -374,8 +411,10 @@
     $("modeDrawers").onclick = () => { state.mode = "drawers"; renderZones(); };
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
     $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
-    $("sendWled").onclick = () => sendPayload(payload()).catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
-    $("allBlue").onclick = () => sendAllBlue().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("connectWled").onclick = () => connectWled().catch(e => toast(`Verbinden fehlgeschlagen: ${e.message}`));
+    $("sendWled").onclick = () => sendZonesToWled().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("allOn").onclick = () => sendAllOn().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("allOff").onclick = () => sendAllOff().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
     $("manualRange").onclick = () => sendManualRange().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
     $("copyPayload").onclick = async () => { await navigator.clipboard.writeText($("payload").value); toast("Payload kopiert"); };
     renderAll();
