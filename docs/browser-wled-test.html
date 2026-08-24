@@ -94,6 +94,7 @@
           <label>LEDs/Fach <input id="leds" type="number" min="1"></label>
           <label>Breite/Fach mm <input id="width" type="number" min="1"></label>
           <label>Höhe/Fach mm <input id="height" type="number" min="1"></label>
+          <label>Start-Ecke <select id="corner"><option value="top-left">Oben links</option><option value="top-right">Oben rechts</option><option value="bottom-left">Unten links</option><option value="bottom-right">Unten rechts</option></select></label>
           <label>Strip-Verlauf <select id="path"><option value="rows">Reihe für Reihe</option><option value="columns">Spalte für Spalte</option></select></label>
           <label>Serpentine <select id="serpentine"><option value="false">Aus</option><option value="true">An</option></select></label>
         </div>
@@ -153,7 +154,7 @@
     const colors = { cyan:[0,150,255], blue:[0,0,255], yellow:[255,180,0], green:[0,255,90], red:[255,0,0], white:[255,255,255] };
     const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
     const defaultCabinets = [
-      { id:"magazin-1", name:"Magazin 1", rows:1, columns:1, start_led:0, leds_per_slot:1, slot_width_mm:55, slot_height_mm:38, strip_path:"rows", serpentine:false, x:24, y:24 }
+      { id:"magazin-1", name:"Magazin 1", rows:1, columns:1, start_led:0, leds_per_slot:1, slot_width_mm:55, slot_height_mm:38, start_corner:"top-left", strip_path:"rows", serpentine:false, x:24, y:24 }
     ];
     const state = {
       wizardStep: 0,
@@ -213,6 +214,24 @@
       };
     }
 
+    function pathIndexForCell(row, col, rows, columns, cabinet) {
+      const corner = cabinet.start_corner || "top-left";
+      const startsTop = corner.startsWith("top");
+      const startsLeft = corner.endsWith("left");
+      const stripPath = cabinet.strip_path || "rows";
+      const serpentine = Boolean(cabinet.serpentine);
+      if (stripPath === "columns") {
+        const major = startsLeft ? col : columns - 1 - col;
+        const down = serpentine && major % 2 ? !startsTop : startsTop;
+        const pathRow = down ? row : rows - 1 - row;
+        return major * rows + pathRow;
+      }
+      const major = startsTop ? row : rows - 1 - row;
+      const right = serpentine && major % 2 ? !startsLeft : startsLeft;
+      const pathCol = right ? col : columns - 1 - col;
+      return major * columns + pathCol;
+    }
+
     function slots() {
       const out = [];
       let globalIndex = 1;
@@ -220,17 +239,9 @@
         const rows = Number(cabinet.rows || 1);
         const columns = Number(cabinet.columns || 1);
         const ledsPerSlot = Number(cabinet.leds_per_slot || 1);
-        const stripPath = cabinet.strip_path || "rows";
         for (let row = 0; row < rows; row++) {
           for (let col = 0; col < columns; col++) {
-            let pathIndex;
-            if (stripPath === "columns") {
-              const pathRow = cabinet.serpentine && col % 2 ? rows - 1 - row : row;
-              pathIndex = col * rows + pathRow;
-            } else {
-              const pathCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
-              pathIndex = row * columns + pathCol;
-            }
+            const pathIndex = pathIndexForCell(row, col, rows, columns, cabinet);
             const ledStart = Number(cabinet.start_led || 0) + pathIndex * ledsPerSlot;
             out.push({
               id: `${cabinet.id}-${row + 1}-${col + 1}`,
@@ -287,7 +298,7 @@
       const panels = [
         `<strong>WLED verbinden</strong><p>Trage die URL deines WLED-Controllers ein.</p><div class="fields"><label>WLED URL <input id="wizardUrl" placeholder="http://wled.local oder http://192.168.x.x" value="${$("wledUrl").value}"></label></div><button id="wizardConnect" class="primary">Verbinden</button>`,
         `<strong>Stripe-Länge setzen</strong><p>Lege fest, wie viele LEDs dieser Smart-Storage-Bereich verwenden darf.</p><div class="fields"><label>Gesamt-LEDs <input id="wizardTotal" type="number" min="1" value="${$("totalLeds").value}"></label><label>Helligkeit <input id="wizardBrightness" type="range" min="1" max="255" value="${$("brightness").value}"></label><label>Farbe <select id="wizardColor">${Object.keys(colors).map(key => option(key, key[0].toUpperCase() + key.slice(1), $("color").value)).join("")}</select></label></div><button id="wizardAllOn" class="primary">Alle eingetragenen LEDs testen</button>`,
-        `<strong>Magazine einrichten</strong><p>Konfiguriere den ausgewählten Block direkt hier im Popup.</p><div class="fields"><label>Reihen <input id="wizardRows" type="number" min="1" value="${cabinet.rows}"></label><label>Spalten <input id="wizardColumns" type="number" min="1" value="${cabinet.columns}"></label><label>Start-LED <input id="wizardStart" type="number" min="0" value="${cabinet.start_led}"></label><label>Stop-LED <input id="wizardStop" type="number" min="1" value="${cabinetStop(cabinet)}"></label><label>LEDs/Fach <input id="wizardLeds" type="number" min="1" value="${cabinet.leds_per_slot}"></label><label>Strip-Verlauf <select id="wizardPath">${option("rows", "Reihe für Reihe", cabinet.strip_path)}${option("columns", "Spalte für Spalte", cabinet.strip_path)}</select></label><label>Serpentine <select id="wizardSerpentine">${option("false", "Aus", cabinet.serpentine)}${option("true", "An", cabinet.serpentine)}</select></label></div><button id="wizardApplyLayout" class="primary">Layout übernehmen</button>`,
+        `<strong>Magazine einrichten</strong><p>Konfiguriere den ausgewählten Block direkt hier im Popup.</p><div class="fields"><label>Reihen <input id="wizardRows" type="number" min="1" value="${cabinet.rows}"></label><label>Spalten <input id="wizardColumns" type="number" min="1" value="${cabinet.columns}"></label><label>Start-LED <input id="wizardStart" type="number" min="0" value="${cabinet.start_led}"></label><label>Stop-LED <input id="wizardStop" type="number" min="1" value="${cabinetStop(cabinet)}"></label><label>LEDs/Fach <input id="wizardLeds" type="number" min="1" value="${cabinet.leds_per_slot}"></label><label>Start-Ecke <select id="wizardCorner">${option("top-left", "Oben links", cabinet.start_corner)}${option("top-right", "Oben rechts", cabinet.start_corner)}${option("bottom-left", "Unten links", cabinet.start_corner)}${option("bottom-right", "Unten rechts", cabinet.start_corner)}</select></label><label>Strip-Verlauf <select id="wizardPath">${option("rows", "Reihe für Reihe", cabinet.strip_path)}${option("columns", "Spalte für Spalte", cabinet.strip_path)}</select></label><label>Serpentine <select id="wizardSerpentine">${option("false", "Aus", cabinet.serpentine)}${option("true", "An", cabinet.serpentine)}</select></label></div><button id="wizardApplyLayout" class="primary">Layout übernehmen</button>`,
         `<strong>Fächer testen</strong><p>Teste einen Bereich oder klicke links auf einzelne Fächer.</p><div class="fields"><label>Test Start <input id="wizardTestStart" type="number" min="0" value="${$("testStart").value}"></label><label>Test Stop <input id="wizardTestStop" type="number" min="1" value="${$("testStop").value}"></label></div><button id="wizardRange" class="primary">Bereich testen</button>`
       ];
       $("wizardPanel").innerHTML = panels[state.wizardStep];
@@ -314,6 +325,7 @@
         cabinet.start_led = Math.max(0, Number($("wizardStart").value || 0));
         cabinet.stop_led = Math.max(cabinet.start_led + 1, Number($("wizardStop").value || cabinet.start_led + 1));
         cabinet.leds_per_slot = Math.max(1, Number($("wizardLeds").value || Math.ceil((cabinet.stop_led - cabinet.start_led) / slotCount(cabinet))));
+        cabinet.start_corner = $("wizardCorner").value;
         cabinet.strip_path = $("wizardPath").value;
         cabinet.serpentine = $("wizardSerpentine").value === "true";
         state.wizardStep = 3;
@@ -446,6 +458,7 @@
       $("leds").value = cabinet.leds_per_slot;
       $("width").value = cabinet.slot_width_mm;
       $("height").value = cabinet.slot_height_mm;
+      $("corner").value = cabinet.start_corner || "top-left";
       $("path").value = cabinet.strip_path || "rows";
       $("serpentine").value = cabinet.serpentine ? "true" : "false";
     }
@@ -468,6 +481,7 @@
       }
       cabinet.slot_width_mm = Math.max(1, Number($("width").value || 55));
       cabinet.slot_height_mm = Math.max(1, Number($("height").value || 38));
+      cabinet.start_corner = $("corner").value;
       cabinet.strip_path = $("path").value;
       cabinet.serpentine = $("serpentine").value === "true";
       renderAll();
@@ -518,6 +532,7 @@
         leds_per_slot: large ? 16 : 4,
         slot_width_mm: large ? 220 : 55,
         slot_height_mm: large ? 55 : 38,
+        start_corner: "top-left",
         strip_path: "rows",
         serpentine: false,
         x: 36 + index * 18,
@@ -535,7 +550,7 @@
       renderWizard();
     }
 
-    ["name", "id", "rows", "columns", "start", "leds", "width", "height", "path", "serpentine"].forEach(id => {
+    ["name", "id", "rows", "columns", "start", "leds", "width", "height", "corner", "path", "serpentine"].forEach(id => {
       $(id).oninput = () => readInspector(false);
     });
     $("stop").oninput = () => readInspector(true);
