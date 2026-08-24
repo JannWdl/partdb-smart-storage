@@ -385,6 +385,54 @@ textarea {
   margin-top: 10px;
 }
 
+.scan-context {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.scan-context div {
+  display: grid;
+  gap: 2px;
+  padding: 9px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  background: rgba(36, 42, 50, .58);
+}
+
+.scan-context span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.scan-context b {
+  overflow-wrap: anywhere;
+}
+
+.stock-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stock-buttons button {
+  min-height: 54px;
+}
+
+button.success {
+  border-color: rgba(131, 243, 178, .5);
+  color: var(--green);
+  background: rgba(25, 75, 48, .55);
+}
+
+button.danger {
+  border-color: rgba(255, 122, 122, .5);
+  color: var(--red);
+  background: rgba(81, 34, 38, .55);
+}
+
 .print-actions {
   display: grid;
   gap: 8px;
@@ -432,6 +480,14 @@ textarea {
   color: var(--muted);
 }
 
+.event-row em {
+  grid-column: 1 / -1;
+  color: var(--red);
+  font-size: 12px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
 #toast {
   position: fixed;
   left: 50%;
@@ -457,6 +513,6 @@ textarea {
 
 @media (max-width: 620px) {
   header, main { padding: 12px; }
-  .toolbar, .form-grid, .assignment-row { grid-template-columns: 1fr; }
+  .toolbar, .form-grid, .assignment-row, .stock-buttons { grid-template-columns: 1fr; }
   .layout-card .fields, .fields, .wizard-actions { grid-template-columns: 1fr; }
 }

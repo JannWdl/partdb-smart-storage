@@ -7,6 +7,7 @@ let state = {
   parts: [],
   settings: null,
   stockEvents: [],
+  scanSession: null,
   setupStep: "arrangement",
   setupModalShown: false,
   activePanel: "assignPanel",
@@ -15,6 +16,7 @@ let state = {
   cameraTimer: null,
   lastCameraCode: "",
   lastCameraAt: 0,
+  lastScanStatus: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -66,6 +68,7 @@ async function loadAll() {
   state.assignments = await api("/api/assignments");
   state.settings = await api("/api/settings");
   state.stockEvents = await api("/api/stock/events?limit=20");
+  state.scanSession = await api("/api/scan/session").catch(() => ({ session: null }));
   renderMagazines();
   renderSlotSelect();
   renderAssignments();
@@ -159,14 +162,17 @@ function renderSettingsPanel() {
       <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
       <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
       <label class="checkline"><input id="settingCameraEnabled" type="checkbox" ${cfg.barcode_camera_enabled ? "checked" : ""}> Kamera-Scanner aktiv</label>
+      <label class="checkline"><input id="settingStockWriteEnabled" type="checkbox" ${cfg.partdb_stock_write_enabled ? "checked" : ""}> Part-DB Bestand schreiben</label>
     </div>
     <div class="wizard-actions">
       <button id="saveSettingsBtn" class="primary">Speichern</button>
       <button id="testWledBtn">WLED testen</button>
+      <button id="testPartdbStockBtn">Part-DB Buchung testen</button>
     </div>
   `;
   $("saveSettingsBtn").onclick = saveSettings;
   $("testWledBtn").onclick = testWled;
+  $("testPartdbStockBtn").onclick = () => testPartdbStock().catch((error) => toast(error.message));
 }
 
 function renderSideTabs() {
@@ -198,13 +204,25 @@ function closeSetupModal() {
 
 function renderBarcodePanel() {
   const cfg = state.settings || {};
+  const session = state.scanSession?.session || {};
   const root = $("barcodePanel");
   root.innerHTML = `
     <p class="meta">Barcode wird ausschließlich in den Einstellungen aktiviert oder deaktiviert.</p>
     <p class="meta">Codes: PART:&lt;id&gt;, DRAWER:&lt;fach-id&gt;, ADD, REMOVE, WISHLIST, CANCEL</p>
+    <div class="scan-context">
+      <div><span>Teil</span><b>${session.part_name || session.partdb_part_id || "nicht gewählt"}</b></div>
+      <div><span>Fach</span><b>${session.drawer_id || "nicht gewählt"}</b></div>
+      <div><span>Modus</span><b>${cfg.partdb_stock_write_enabled ? "Part-DB schreiben" : "Testmodus lokal"}</b></div>
+    </div>
     <div class="form-grid barcode-line">
       <input id="scanInput" placeholder="Scanner-Fokus: Barcode scannen oder eintippen" ${cfg.barcode_enabled ? "" : "disabled"}>
       <button id="scanBtn" ${cfg.barcode_enabled ? "" : "disabled"}>Senden</button>
+    </div>
+    <div class="stock-buttons">
+      <button data-scan-code="ADD" class="success" ${cfg.barcode_enabled ? "" : "disabled"}>+ Bestand</button>
+      <button data-scan-code="REMOVE" class="danger" ${cfg.barcode_enabled ? "" : "disabled"}>- Bestand</button>
+      <button data-scan-code="WISHLIST" ${cfg.barcode_enabled ? "" : "disabled"}>Nachkauf</button>
+      <button data-scan-code="CANCEL" ${cfg.barcode_enabled ? "" : "disabled"}>Abbrechen</button>
     </div>
     <div class="wizard-actions">
       <button id="cameraBtn" ${cfg.barcode_enabled && cfg.barcode_camera_enabled ? "" : "disabled"}>Kamera starten</button>
@@ -220,6 +238,10 @@ function renderBarcodePanel() {
   };
   $("cameraBtn").onclick = () => startCameraScanner().catch((error) => showScanError(error.message));
   $("cameraStopBtn").onclick = stopCameraScanner;
+  root.querySelectorAll("[data-scan-code]").forEach((button) => {
+    button.onclick = () => sendScan(button.dataset.scanCode).catch((error) => showScanError(error.message));
+  });
+  $("scanStatus").textContent = state.lastScanStatus;
   renderStockEvents();
 }
 
@@ -245,6 +267,7 @@ function renderPrintPanel() {
 
 function showScanError(message) {
   beep("error");
+  state.lastScanStatus = message;
   $("scanStatus").textContent = message;
   toast(message);
 }
@@ -259,7 +282,8 @@ function renderStockEvents() {
     <div class="event-row">
       <b>${event.event_type}</b>
       <span>${event.part_name || event.partdb_part_id || "ohne Teil"}</span>
-      <small>${event.drawer_id || ""}</small>
+      <small>${event.status || "local"}${event.drawer_id ? " · " + event.drawer_id : ""}</small>
+      ${event.sync_error ? `<em>${event.sync_error}</em>` : ""}
     </div>
   `).join("");
 }
@@ -275,11 +299,19 @@ async function saveSettings() {
       scan_timeout_seconds: Number($("settingTimeout").value || 30),
       barcode_enabled: $("settingBarcodeEnabled").checked,
       barcode_camera_enabled: $("settingCameraEnabled").checked,
+      partdb_stock_write_enabled: $("settingStockWriteEnabled").checked,
     }),
   });
   toast("Einstellungen gespeichert.");
   await checkHealth();
   renderBarcodePanel();
+}
+
+async function testPartdbStock() {
+  const result = await api("/api/partdb/stock/test");
+  if (!result.ok) throw new Error(result.message || "Part-DB Buchung nicht bereit.");
+  beep("success");
+  toast(result.message || "Part-DB Buchung bereit.");
 }
 
 async function testWled() {
@@ -317,9 +349,12 @@ async function sendScan(rawCode) {
     body: JSON.stringify({ code }),
   });
   beep(result.audio || result.kind || (result.ok ? "success" : "error"));
-  $("scanStatus").textContent = result.message || "Scan verarbeitet.";
-  toast(result.message || "Scan verarbeitet.");
+  state.lastScanStatus = result.message || "Scan verarbeitet.";
+  $("scanStatus").textContent = state.lastScanStatus;
+  toast(state.lastScanStatus);
+  state.scanSession = await api("/api/scan/session").catch(() => ({ session: result.session || null }));
   state.stockEvents = await api("/api/stock/events?limit=20");
+  renderBarcodePanel();
   renderStockEvents();
 }
 

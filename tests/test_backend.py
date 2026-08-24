@@ -26,10 +26,12 @@ class BackendTests(unittest.TestCase):
         saved = backend.save_settings({
             "wled_url": "http://192.168.178.50/",
             "barcode_enabled": False,
+            "partdb_stock_write_enabled": False,
             "scan_timeout_seconds": 12,
         })
         self.assertEqual(saved["wled_url"], "http://192.168.178.50")
         self.assertFalse(saved["barcode_enabled"])
+        self.assertFalse(saved["partdb_stock_write_enabled"])
         self.assertEqual(saved["scan_timeout_seconds"], 12)
 
     def test_scan_session_expires(self):
@@ -51,6 +53,37 @@ class BackendTests(unittest.TestCase):
             result = backend.api_scan({"code": "ADD"})
         self.assertFalse(result["ok"])
         self.assertEqual(result["kind"], "error")
+
+    def test_scan_action_can_run_in_local_test_mode(self):
+        backend = self.load_app_module()
+        backend.save_settings({"partdb_stock_write_enabled": False})
+        backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
+        with patch.object(backend, "call_wled", return_value={"ok": True}), patch.object(backend, "write_partdb_stock") as write_stock:
+            result = backend.api_scan({"code": "ADD"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "local")
+        write_stock.assert_not_called()
+
+    def test_scan_action_records_synced_partdb_write(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
+        with patch.object(backend, "call_wled", return_value={"ok": True}), patch.object(backend, "write_partdb_stock", return_value={"old_amount": 1, "new_amount": 2}):
+            result = backend.api_scan({"code": "ADD"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "synced")
+        events = backend.api_stock_events(1)
+        self.assertEqual(events[0]["status"], "synced")
+
+    def test_scan_action_records_failed_partdb_write(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
+        with patch.object(backend, "call_wled", return_value={"ok": True}), patch.object(backend, "write_partdb_stock", side_effect=RuntimeError("kein Token")):
+            result = backend.api_scan({"code": "REMOVE"})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "failed")
+        events = backend.api_stock_events(1)
+        self.assertEqual(events[0]["status"], "failed")
+        self.assertIn("kein Token", events[0]["sync_error"])
 
     def test_wled_zones_can_be_created_by_drawer_or_cabinet(self):
         backend = self.load_app_module()

@@ -69,9 +69,18 @@ PUT /api/settings
   "wled_url": "http://192.168.178.220",
   "barcode_enabled": true,
   "barcode_camera_enabled": true,
+  "partdb_stock_write_enabled": true,
   "scan_timeout_seconds": 30
 }
 ```
+
+## Part-DB Bestandsschreiben testen
+
+```http
+GET /api/partdb/stock/test
+```
+
+Prüft API-Token und ob die Part-DB-API einen bearbeitbaren Part-Lot-Endpunkt anbietet.
 
 ## Fach testen
 
@@ -153,6 +162,8 @@ Content-Type: application/json
 
 Unterstützte Codes: `PART:<partdb_id>`, `DRAWER:<drawer_id>`, `ADD`, `REMOVE`, `WISHLIST`, `CANCEL`.
 
+`ADD` und `REMOVE` schreiben bei aktivem `partdb_stock_write_enabled` in Part-DB. `WISHLIST` bleibt lokal.
+
 ## Lokale Bestandsbuchungen
 
 ```http
@@ -161,4 +172,4 @@ POST /api/stock/remove
 GET /api/stock/events
 ```
 
-Die Buchungen werden lokal protokolliert und verändern Part-DB-Bestände in v1 nicht direkt.
+Die Buchungen werden lokal protokolliert. Events haben einen Status wie `synced`, `local` oder `failed`.

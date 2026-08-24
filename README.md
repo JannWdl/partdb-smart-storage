@@ -63,6 +63,7 @@ PARTDB_API_TOKEN=
 WLED_BASE_URL=http://192.168.178.220
 BARCODE_ENABLED=true
 BARCODE_CAMERA_ENABLED=true
+PARTDB_STOCK_WRITE_ENABLED=true
 SCAN_TIMEOUT_SECONDS=30
 APP_PORT=8090
 PARTDB_PORT=8080
@@ -114,25 +115,20 @@ Standardcodes:
 
 - `PART:<partdb_id>` wählt ein Teil.
 - `DRAWER:<drawer_id>` wählt ein Fach.
-- `ADD` bucht lokal Zugang.
-- `REMOVE` bucht lokal Abgang.
+- `ADD` bucht Zugang.
+- `REMOVE` bucht Abgang.
 - `WISHLIST` markiert lokal Nachkauf/Wunschliste.
 - `CANCEL` beendet die aktuelle Scan-Session.
 
-Die aktuelle Scan-Session läuft standardmäßig nach 30 Sekunden ab. Erfolg wird grün signalisiert, Fehler rot, Wunschliste blau und Locate gelb.
+Wenn `Part-DB Bestand schreiben` aktiv ist, ändern `ADD` und `REMOVE` den Bestand in Part-DB. Wenn der Schalter aus ist, läuft der Barcode-Flow als lokaler Testmodus. Die aktuelle Scan-Session läuft standardmäßig nach 30 Sekunden ab. Erfolg wird grün signalisiert, Fehler rot, Wunschliste blau und Locate gelb.
 
-## WLED-Zonen
+## WLED und Setup
 
-Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem aktuellen Magazinlayout automatisch WLED-Segmente:
+Der Setup-Assistent berechnet die LEDs als fortlaufenden Stripe, nicht als Matrix:
 
-- Modus `Fächer`: jedes Fach ist eine eigene Zone.
-- Modus `Magazinblöcke`: jeder grafische Magazinblock ist eine Zone.
-- Klick auf eine Zone testet den LED-Bereich direkt am Controller.
-- `Zonen an WLED senden` schreibt die generierten Segmente in WLED.
-- Die LEDs werden als ein fortlaufender Stripe berechnet, nicht als Matrix.
 - `Strip-Verlauf` legt nur fest, ob der Stripe Reihe für Reihe oder Spalte für Spalte durch die Fächer läuft.
 - `Serpentine` aktivieren, wenn der Stripe am Ende jeder Reihe oder Spalte zurückläuft.
-- Die Vollvorschau nutzt einzelne Pixel-Farben in einem WLED-Segment, damit auch Controller mit niedrigem Segmentlimit alle Fächer anzeigen können.
+- Im Test-Schritt kann jedes Fach direkt am WLED-Controller leuchten.
 
 Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.
 

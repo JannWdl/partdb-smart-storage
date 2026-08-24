@@ -27,6 +27,7 @@ ENV_DEFAULTS = {
     "wled_url": os.environ.get("WLED_BASE_URL", "http://192.168.178.220").rstrip("/"),
     "barcode_enabled": os.environ.get("BARCODE_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
     "barcode_camera_enabled": os.environ.get("BARCODE_CAMERA_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
+    "partdb_stock_write_enabled": os.environ.get("PARTDB_STOCK_WRITE_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
     "scan_timeout_seconds": int(os.environ.get("SCAN_TIMEOUT_SECONDS", "30")),
 }
 
@@ -113,6 +114,9 @@ def ensure_data():
             )
             """
         )
+        add_column(con, "stock_events", "status", "text not null default 'local'")
+        add_column(con, "stock_events", "sync_error", "text")
+        add_column(con, "stock_events", "partdb_result", "text")
         con.execute(
             """
             create table if not exists scan_sessions (
@@ -179,6 +183,7 @@ def settings():
     result["scan_timeout_seconds"] = int(result["scan_timeout_seconds"] or 30)
     result["barcode_enabled"] = bool(result["barcode_enabled"])
     result["barcode_camera_enabled"] = bool(result["barcode_camera_enabled"])
+    result["partdb_stock_write_enabled"] = bool(result["partdb_stock_write_enabled"])
     return result
 
 
@@ -192,7 +197,7 @@ def save_settings(payload):
                 value = str(value).strip().rstrip("/")
             if key == "scan_timeout_seconds":
                 value = max(5, min(300, int(value or 30)))
-            if key in ("barcode_enabled", "barcode_camera_enabled"):
+            if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled"):
                 value = bool(value)
             con.execute(
                 """
@@ -207,10 +212,136 @@ def save_settings(payload):
 
 def auth_headers():
     cfg = settings()
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/ld+json, application/json"}
     if cfg["partdb_api_token"]:
         headers["Authorization"] = f"Bearer {cfg['partdb_api_token']}"
     return headers
+
+
+def partdb_api_url(path):
+    path = str(path or "").strip()
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    if not path.startswith("/"):
+        path = "/" + path
+    if path.startswith("/api/"):
+        return f"{settings()['partdb_internal_url']}{path}"
+    return f"{settings()['partdb_internal_url']}/api{path}"
+
+
+def partdb_get(path, timeout=4):
+    response = requests.get(partdb_api_url(path), headers=auth_headers(), timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
+def partdb_patch(path, payload):
+    headers = auth_headers()
+    headers["Content-Type"] = "application/merge-patch+json"
+    response = requests.patch(partdb_api_url(path), headers=headers, json=payload, timeout=5)
+    response.raise_for_status()
+    try:
+        return response.json()
+    except Exception:
+        return {"ok": True}
+
+
+def collection_items(payload):
+    if isinstance(payload, list):
+        return payload
+    if not isinstance(payload, dict):
+        return []
+    return payload.get("hydra:member") or payload.get("member") or payload.get("items") or payload.get("data") or []
+
+
+def entity_id(value):
+    text = str(value or "").strip().rstrip("/")
+    return text.split("/")[-1] if text else ""
+
+
+def partdb_openapi():
+    last_error = None
+    for path in ("/docs.jsonopenapi", "/docs.json"):
+        try:
+            docs = partdb_get(path)
+            if isinstance(docs, dict) and docs.get("paths"):
+                return docs
+        except Exception as exc:
+            last_error = exc
+    raise RuntimeError(f"OpenAPI-Dokument nicht gefunden: {last_error}")
+
+
+def partdb_stock_strategy():
+    cfg = settings()
+    if not cfg["partdb_api_token"]:
+        return {"ok": False, "message": "Part-DB API-Token fehlt."}
+    try:
+        docs = partdb_openapi()
+    except Exception as exc:
+        return {"ok": False, "message": f"Part-DB OpenAPI konnte nicht gelesen werden: {exc}"}
+    paths = docs.get("paths", {}) if isinstance(docs, dict) else {}
+    part_lot_patch = any("part_lots" in path and "patch" in {method.lower() for method in methods} for path, methods in paths.items() if isinstance(methods, dict))
+    if not part_lot_patch:
+        return {"ok": False, "message": "Part-DB API bietet keinen PATCH-Endpunkt fuer Part-Lots an."}
+    return {"ok": True, "strategy": "part_lot_patch", "message": "Part-DB Bestandsschreiben ist bereit."}
+
+
+def first_part_lot(part_id):
+    candidates = []
+    part = partdb_get(f"/parts/{entity_id(part_id)}")
+    for key in ("part_lots", "partLots", "lots", "part_lot"):
+        value = part.get(key) if isinstance(part, dict) else None
+        if isinstance(value, list):
+            candidates.extend(value)
+        elif value:
+            candidates.append(value)
+    for query in (
+        f"/part_lots?part=/api/parts/{entity_id(part_id)}",
+        f"/part_lots?part={entity_id(part_id)}",
+        f"/part_lots?part.id={entity_id(part_id)}",
+    ):
+        try:
+            candidates.extend(collection_items(partdb_get(query)))
+        except Exception:
+            continue
+    for candidate in candidates:
+        lot_path = candidate.get("@id") if isinstance(candidate, dict) else candidate
+        if lot_path:
+            lot = candidate if isinstance(candidate, dict) and "amount" in candidate else partdb_get(lot_path)
+            lot_part = lot.get("part") if isinstance(lot, dict) else ""
+            if isinstance(lot_part, dict):
+                lot_part = lot_part.get("@id") or lot_part.get("id")
+            if str(entity_id(lot_part)) in ("", str(entity_id(part_id))):
+                return lot
+    raise RuntimeError("Kein Part-DB-Lagerlos fuer dieses Teil gefunden.")
+
+
+def lot_amount(lot):
+    for key in ("amount", "instock", "instock_amount", "stock"):
+        if isinstance(lot, dict) and lot.get(key) is not None:
+            return float(lot[key])
+    raise RuntimeError("Part-DB-Lagerlos enthaelt keinen lesbaren Bestand.")
+
+
+def write_partdb_stock(part_id, action, quantity=1):
+    strategy = partdb_stock_strategy()
+    if not strategy["ok"]:
+        raise RuntimeError(strategy["message"])
+    lot = first_part_lot(part_id)
+    old_amount = lot_amount(lot)
+    delta = float(quantity or 1) * (1 if action == "ADD" else -1)
+    new_amount = old_amount + delta
+    if new_amount < 0:
+        raise RuntimeError("Nicht genug Bestand in Part-DB.")
+    lot_path = lot.get("@id") or f"/part_lots/{entity_id(lot.get('id'))}"
+    result = partdb_patch(lot_path, {"amount": new_amount})
+    return {
+        "strategy": strategy["strategy"],
+        "lot": lot_path,
+        "old_amount": old_amount,
+        "new_amount": new_amount,
+        "result": result,
+    }
 
 
 def normalize(text):
@@ -415,15 +546,17 @@ def assignments():
     return result
 
 
-def record_stock_event(event_type, partdb_part_id=None, part_name=None, drawer_id=None, quantity=1, code=None, message=""):
+def record_stock_event(event_type, partdb_part_id=None, part_name=None, drawer_id=None, quantity=1, code=None, message="", status="local", sync_error=None, partdb_result=None):
     with db() as con:
-        con.execute(
+        cursor = con.execute(
             """
-            insert into stock_events (event_type, partdb_part_id, part_name, drawer_id, quantity, code, message, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?)
+            insert into stock_events
+                (event_type, partdb_part_id, part_name, drawer_id, quantity, code, message, created_at, status, sync_error, partdb_result)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (event_type, partdb_part_id, part_name, drawer_id, int(quantity or 1), code, message, int(time.time())),
+            (event_type, partdb_part_id, part_name, drawer_id, int(quantity or 1), code, message, int(time.time()), status, sync_error, json.dumps(partdb_result) if partdb_result is not None else None),
         )
+        return cursor.lastrowid
 
 
 def current_session():
@@ -489,6 +622,7 @@ def find_assignment_by_drawer(drawer_id):
 
 
 def handle_action(action, code):
+    cfg = settings()
     session = current_session()
     part_id = session.get("partdb_part_id")
     drawer_id = session.get("drawer_id")
@@ -497,12 +631,26 @@ def handle_action(action, code):
         drawer_id = assignment["drawer_id"]
     slot = slot_by_id(drawer_id) if drawer_id else None
     if not part_id or not drawer_id:
-        record_stock_event("scan_error", part_id, session.get("part_name"), drawer_id, 1, code, "Teil oder Fach fehlt.")
+        record_stock_event("scan_error", part_id, session.get("part_name"), drawer_id, 1, code, "Teil oder Fach fehlt.", status="failed")
         return {"ok": False, "session": session, **feedback("error", "Erst Teil und Fach scannen.")}
     event_type = {"ADD": "add", "REMOVE": "remove", "WISHLIST": "wishlist"}[action]
-    message = {"ADD": "Zugang lokal gebucht.", "REMOVE": "Abgang lokal gebucht.", "WISHLIST": "Wunschliste lokal markiert."}[action]
-    record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message)
-    return {"ok": True, "event_type": event_type, "session": save_session(session), **feedback("wishlist" if action == "WISHLIST" else "success", message, slot)}
+    if action == "WISHLIST":
+        message = "Wunschliste lokal markiert."
+        record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="local")
+        return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "local", **feedback("wishlist", message, slot)}
+    if not cfg["partdb_stock_write_enabled"]:
+        message = "Testmodus: Bestand nicht in Part-DB geaendert."
+        record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="local")
+        return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "local", **feedback("success", message, slot)}
+    try:
+        partdb_result = write_partdb_stock(part_id, action, 1)
+    except Exception as exc:
+        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="failed", sync_error=str(exc))
+        return {"ok": False, "event_type": event_type, "session": session, "status": "failed", **feedback("error", message, slot)}
+    message = {"ADD": "Zugang in Part-DB gebucht.", "REMOVE": "Abgang in Part-DB gebucht."}[action]
+    record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="synced", partdb_result=partdb_result)
+    return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "synced", "partdb": partdb_result, **feedback("success", message, slot)}
 
 
 @app.get("/")
@@ -534,6 +682,11 @@ def api_get_settings():
 @app.put("/api/settings")
 def api_save_settings(payload: dict = Body(...)):
     return save_settings(payload)
+
+
+@app.get("/api/partdb/stock/test")
+def api_partdb_stock_test():
+    return partdb_stock_strategy()
 
 
 @app.get("/api/layout")
@@ -690,7 +843,7 @@ def api_scan(data: dict = Body(...)):
         drawer_id = code.split(":", 1)[1].strip()
         slot = slot_by_id(drawer_id)
         if not slot:
-            record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), drawer_id, 1, code, "Fach nicht gefunden.")
+            record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), drawer_id, 1, code, "Fach nicht gefunden.", status="failed")
             return {"ok": False, "session": session, **feedback("error", "Fach nicht gefunden.")}
         assignment = find_assignment_by_drawer(drawer_id)
         session["drawer_id"] = slot["id"]
@@ -700,20 +853,35 @@ def api_scan(data: dict = Body(...)):
         return {"ok": True, "session": save_session(session), **feedback("locate", f"{slot['label']} gewählt.", slot)}
     if upper in ("ADD", "REMOVE", "WISHLIST"):
         return handle_action(upper, code)
-    record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), session.get("drawer_id"), 1, code, "Unbekannter Barcode.")
+    record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), session.get("drawer_id"), 1, code, "Unbekannter Barcode.", status="failed")
     return {"ok": False, "session": session, **feedback("error", f"Unbekannter Barcode: {code}")}
+
+
+@app.get("/api/scan/session")
+def api_scan_session():
+    return {"session": current_session(), "settings": {"scan_timeout_seconds": settings()["scan_timeout_seconds"]}}
 
 
 @app.post("/api/stock/add")
 def api_stock_add(data: dict = Body(...)):
-    record_stock_event("add", data.get("partdb_part_id"), data.get("part_name"), data.get("drawer_id"), data.get("quantity", 1), None, "Manueller Zugang.")
-    return {"ok": True, **feedback("success", "Zugang lokal gebucht.", slot_by_id(data.get("drawer_id", "")))}
+    session = {
+        "partdb_part_id": str(data.get("partdb_part_id") or "").strip(),
+        "part_name": str(data.get("part_name") or "").strip() or None,
+        "drawer_id": str(data.get("drawer_id") or "").strip(),
+    }
+    save_session(session)
+    return handle_action("ADD", "ADD")
 
 
 @app.post("/api/stock/remove")
 def api_stock_remove(data: dict = Body(...)):
-    record_stock_event("remove", data.get("partdb_part_id"), data.get("part_name"), data.get("drawer_id"), data.get("quantity", 1), None, "Manueller Abgang.")
-    return {"ok": True, **feedback("success", "Abgang lokal gebucht.", slot_by_id(data.get("drawer_id", "")))}
+    session = {
+        "partdb_part_id": str(data.get("partdb_part_id") or "").strip(),
+        "part_name": str(data.get("part_name") or "").strip() or None,
+        "drawer_id": str(data.get("drawer_id") or "").strip(),
+    }
+    save_session(session)
+    return handle_action("REMOVE", "REMOVE")
 
 
 @app.get("/api/stock/events")
