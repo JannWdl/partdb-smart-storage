@@ -271,8 +271,8 @@ def partdb_status_for_http(status_code):
     return 502
 
 
-def partdb_get(path, timeout=12):
-    response = partdb_request("GET", path, timeout=timeout)
+def partdb_get(path, timeout=12, headers=None):
+    response = partdb_request("GET", path, timeout=timeout, headers=headers or auth_headers())
     response.raise_for_status()
     return response.json()
 
@@ -303,9 +303,11 @@ def entity_id(value):
 
 def partdb_openapi():
     last_error = None
+    headers = auth_headers()
+    headers["Accept"] = "application/json"
     for path in ("/docs.jsonopenapi", "/docs.json"):
         try:
-            docs = partdb_get(path)
+            docs = partdb_get(path, headers=headers)
             if isinstance(docs, dict) and docs.get("paths"):
                 return docs
         except Exception as exc:

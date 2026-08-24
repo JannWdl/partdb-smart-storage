@@ -76,6 +76,12 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(backend.normalize_scan_code("drawerömagazin-1"), "DRAWER:magazin-1")
         self.assertEqual(backend.normalize_scan_code(" add\n"), "ADD")
 
+    def test_openapi_uses_plain_json_accept_header(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "partdb_get", return_value={"paths": {"/api/part_lots": {"patch": {}}}}) as get:
+            backend.partdb_openapi()
+        self.assertEqual(get.call_args.kwargs["headers"]["Accept"], "application/json")
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
