@@ -132,6 +132,14 @@ Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem akt
 
 Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.
 
+Zum Testen ohne Raspberry-Pi-Flash gibt es eine standalone Browser-Seite:
+
+```text
+docs/browser-wled-test.html
+```
+
+Diese Datei kann direkt am PC im Browser geöffnet werden. Sie braucht weder Docker noch Backend.
+
 ## Wartung
 
 Update:

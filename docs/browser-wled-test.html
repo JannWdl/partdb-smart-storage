@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Storage WLED Browser-Test</title>
+  <style>
+    :root { color-scheme: dark; --bg:#111316; --panel:#1b1f25; --line:#3a434d; --text:#f4f7fb; --muted:#aeb8c5; --accent:#ffd05a; --blue:#79c7ff; --green:#83f3b2; --red:#ff7a7a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--line); background: #15181d; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 16px; margin-bottom: 10px; }
+    h3 { font-size: 14px; margin-bottom: 8px; }
+    p, small { color: var(--muted); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; padding: 16px; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    button, input, select, textarea { font: inherit; border: 1px solid var(--line); border-radius: 8px; background: #242a32; color: var(--text); min-height: 40px; padding: 9px 11px; }
+    button { cursor: pointer; font-weight: 750; }
+    button.primary { background: #3a300f; color: var(--accent); }
+    textarea { width: 100%; min-height: 260px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    .stack { display: grid; gap: 12px; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .fields label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .board { position: relative; height: 460px; overflow: hidden; border: 1px solid #343d47; border-radius: 8px; background: linear-gradient(#242a32 1px, transparent 1px), linear-gradient(90deg, #242a32 1px, transparent 1px), #15191f; background-size: 24px 24px; touch-action: none; }
+    .block { position: absolute; display: grid; grid-template-rows: auto auto 1fr; gap: 4px; padding: 8px; text-align: left; border-color: #50606f; background: rgba(36,42,50,.94); box-shadow: 0 10px 22px rgba(0,0,0,.22); cursor: grab; user-select: none; touch-action: none; }
+    .block.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,208,90,.22), 0 12px 26px rgba(0,0,0,.3); }
+    .block span { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .block i { display: grid; gap: 3px; overflow: hidden; }
+    .block i b { min-height: 10px; border: 1px solid rgba(255,208,90,.42); border-radius: 4px; background: rgba(255,208,90,.08); }
+    .zones { display: grid; gap: 10px; max-height: 430px; overflow: auto; }
+    .zone-grid { display: grid; gap: 7px; }
+    .zone { min-height: 52px; text-align: left; overflow: hidden; }
+    .zone b { display: block; font-size: 13px; }
+    .zone small { display: block; font-size: 11px; margin-top: 3px; }
+    .pill { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+    #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 12px 14px; border-radius: 8px; background: #263241; opacity: 0; transition: opacity .2s; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+    #toast.show { opacity: 1; }
+    @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Smart Storage WLED Browser-Test</h1>
+    <p>Standalone-Testseite ohne Raspberry-Pi-Flash, ohne Docker und ohne Backend.</p>
+  </header>
+  <main>
+    <div class="stack">
+      <section>
+        <h2>Magazin grafisch bauen</h2>
+        <div id="board" class="board"></div>
+        <p class="pill">Blöcke ziehen, anklicken und rechts bearbeiten.</p>
+      </section>
+      <section>
+        <h2>WLED-Zonen Vorschau</h2>
+        <div class="actions">
+          <button id="modeDrawers" class="primary">Fächer</button>
+          <button id="modeCabinets">Magazinblöcke</button>
+        </div>
+        <div id="zones" class="zones"></div>
+      </section>
+    </div>
+    <aside class="stack">
+      <section>
+        <h2>Ausgewählter Block</h2>
+        <div class="fields">
+          <label>Name <input id="name"></label>
+          <label>ID <input id="id"></label>
+          <label>Reihen <input id="rows" type="number" min="1"></label>
+          <label>Spalten <input id="columns" type="number" min="1"></label>
+          <label>Start-LED <input id="start" type="number" min="0"></label>
+          <label>LEDs/Fach <input id="leds" type="number" min="1"></label>
+          <label>Breite/Fach mm <input id="width" type="number" min="1"></label>
+          <label>Höhe/Fach mm <input id="height" type="number" min="1"></label>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button id="addGrid">Raster hinzufügen</button>
+          <button id="addLarge">Großes Fach</button>
+        </div>
+      </section>
+      <section>
+        <h2>WLED senden</h2>
+        <div class="fields">
+          <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
+          <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button id="sendWled" class="primary">An WLED senden</button>
+          <button id="copyPayload">Payload kopieren</button>
+        </div>
+        <p class="pill">Falls direktes Senden wegen Browser/CORS blockiert wird: Payload kopieren und später über die App senden.</p>
+      </section>
+      <section>
+        <h2>JSON Payload</h2>
+        <textarea id="payload" readonly></textarea>
+      </section>
+    </aside>
+  </main>
+  <div id="toast"></div>
+  <script>
+    const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
+    const state = {
+      mode: "drawers",
+      selected: "main",
+      cabinets: [
+        { id:"main", name:"Hauptmagazin", rows:5, columns:4, start_led:0, leds_per_slot:4, slot_width_mm:55, slot_height_mm:38, x:24, y:24 },
+        { id:"bottom", name:"Großes Fach unten", rows:1, columns:1, start_led:80, leds_per_slot:16, slot_width_mm:220, slot_height_mm:55, x:24, y:300 }
+      ]
+    };
+    const $ = (id) => document.getElementById(id);
+    function toast(text) { const el = $("toast"); el.textContent = text; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2400); }
+    function slug(value) { return String(value || "magazin").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "magazin"; }
+    function size(c) { return { width: Math.max(88, Math.min(340, c.columns * Math.max(28, c.slot_width_mm * .55))), height: Math.max(58, Math.min(260, c.rows * Math.max(28, c.slot_height_mm * .7))) }; }
+    function slots() {
+      const out = []; let n = 1;
+      for (const c of state.cabinets) {
+        for (let r = 0; r < c.rows; r++) for (let col = 0; col < c.columns; col++) {
+          const start = c.start_led + ((r * c.columns + col) * c.leds_per_slot);
+          out.push({ id:`${c.id}-${r+1}-${col+1}`, label:`Fach ${n++}`, cabinet_id:c.id, cabinet_name:c.name, row:r+1, column:col+1, led_start:start, led_stop:start+c.leds_per_slot });
+        }
+      }
+      return out;
+    }
+    function zones() {
+      const s = slots();
+      if (state.mode === "cabinets") return state.cabinets.map((c, i) => {
+        const cs = s.filter(x => x.cabinet_id === c.id);
+        return { id:c.id, label:c.name, cabinet_id:c.id, led_start:Math.min(...cs.map(x => x.led_start)), led_stop:Math.max(...cs.map(x => x.led_stop)), color:palette[i % palette.length] };
+      });
+      return s.map((slot, i) => ({ ...slot, color:palette[i % palette.length] }));
+    }
+    function payload() {
+      const bri = Number($("brightness").value || 180);
+      return { on:true, bri, transition:7, mainseg:0, seg:zones().map((z, i) => ({ id:i, start:z.led_start, stop:z.led_stop, on:true, bri, col:[z.color,[0,0,0],[0,0,0]], fx:0, sx:128, ix:128, pal:0 })) };
+    }
+    function renderBoard() {
+      const board = $("board"); board.innerHTML = "";
+      for (const c of state.cabinets) {
+        const block = document.createElement("button");
+        const s = size(c);
+        block.className = `block${c.id === state.selected ? " selected" : ""}`;
+        block.style.left = `${c.x}px`; block.style.top = `${c.y}px`; block.style.width = `${s.width}px`; block.style.height = `${s.height}px`;
+        block.innerHTML = `<span>${c.name}</span><small>${c.rows} x ${c.columns} · LED ${c.start_led}</small><i style="grid-template-columns:repeat(${c.columns},1fr)">${Array.from({length:c.rows*c.columns}).map(() => "<b></b>").join("")}</i>`;
+        block.onpointerdown = (e) => drag(e, c, block, board);
+        board.appendChild(block);
+      }
+    }
+    function drag(e, c, block, board) {
+      e.preventDefault(); state.selected = c.id; fillInspector(); renderBoard();
+      const sx = e.clientX, sy = e.clientY, ox = c.x, oy = c.y, sz = size(c);
+      block.setPointerCapture(e.pointerId);
+      block.onpointermove = (m) => {
+        c.x = Math.round(Math.max(0, Math.min(board.clientWidth - sz.width - 6, ox + m.clientX - sx)));
+        c.y = Math.round(Math.max(0, Math.min(board.clientHeight - sz.height - 6, oy + m.clientY - sy)));
+        block.style.left = `${c.x}px`; block.style.top = `${c.y}px`;
+      };
+      block.onpointerup = () => { block.onpointermove = null; renderAll(); };
+    }
+    function fillInspector() {
+      const c = state.cabinets.find(x => x.id === state.selected) || state.cabinets[0];
+      ["name","id"].forEach(k => $(k).value = c[k]);
+      $("rows").value = c.rows; $("columns").value = c.columns; $("start").value = c.start_led; $("leds").value = c.leds_per_slot; $("width").value = c.slot_width_mm; $("height").value = c.slot_height_mm;
+    }
+    function readInspector() {
+      const c = state.cabinets.find(x => x.id === state.selected); if (!c) return;
+      c.name = $("name").value; c.id = slug($("id").value); state.selected = c.id;
+      c.rows = Number($("rows").value || 1); c.columns = Number($("columns").value || 1); c.start_led = Number($("start").value || 0); c.leds_per_slot = Number($("leds").value || 1); c.slot_width_mm = Number($("width").value || 55); c.slot_height_mm = Number($("height").value || 38);
+      renderAll();
+    }
+    function renderZones() {
+      $("modeDrawers").classList.toggle("primary", state.mode === "drawers");
+      $("modeCabinets").classList.toggle("primary", state.mode === "cabinets");
+      const root = $("zones"); root.innerHTML = "";
+      if (state.mode === "drawers") {
+        for (const c of state.cabinets) {
+          const block = document.createElement("div");
+          block.innerHTML = `<h3>${c.name}</h3>`;
+          const grid = document.createElement("div");
+          grid.className = "zone-grid"; grid.style.gridTemplateColumns = `repeat(${c.columns}, minmax(46px, 1fr))`;
+          zones().filter(z => z.cabinet_id === c.id).forEach(z => grid.appendChild(zoneButton(z)));
+          block.appendChild(grid); root.appendChild(block);
+        }
+      } else zones().forEach(z => root.appendChild(zoneButton(z)));
+      $("payload").value = JSON.stringify(payload(), null, 2);
+    }
+    function zoneButton(z) {
+      const b = document.createElement("button");
+      b.className = "zone"; b.style.borderColor = `rgb(${z.color.join(",")})`; b.style.background = `linear-gradient(135deg, rgba(${z.color.join(",")}, .26), rgba(36,42,50,.96))`;
+      b.innerHTML = `<b>${z.label}</b><small>LED ${z.led_start}-${z.led_stop - 1}</small>`;
+      b.onclick = () => sendPayload({ on:true, bri:220, seg:[{ start:z.led_start, stop:z.led_stop, col:[[0,140,255],[0,0,0],[0,0,0]], fx:2 }] }, `${z.label} getestet`);
+      return b;
+    }
+    async function sendPayload(data, okText = "Payload gesendet") {
+      const url = $("wledUrl").value.replace(/\/$/, "");
+      const res = await fetch(`${url}/json/state`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
+      if (!res.ok) throw new Error(`WLED HTTP ${res.status}`);
+      toast(okText);
+    }
+    function add(kind) {
+      const n = state.cabinets.length + 1, large = kind === "large", maxLed = Math.max(...slots().map(s => s.led_stop), 0);
+      const c = { id: large ? `grossfach-${n}` : `magazin-${n}`, name: large ? `Großes Fach ${n}` : `Magazin ${n}`, rows: large ? 1 : 3, columns: large ? 1 : 4, start_led:maxLed, leds_per_slot: large ? 16 : 4, slot_width_mm: large ? 220 : 55, slot_height_mm: large ? 55 : 38, x:36 + n * 18, y:36 + n * 18 };
+      state.cabinets.push(c); state.selected = c.id; renderAll();
+    }
+    function renderAll() { renderBoard(); fillInspector(); renderZones(); }
+    ["name","id","rows","columns","start","leds","width","height"].forEach(id => $(id).oninput = readInspector);
+    $("modeDrawers").onclick = () => { state.mode = "drawers"; renderZones(); };
+    $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
+    $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
+    $("sendWled").onclick = () => sendPayload(payload()).catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("copyPayload").onclick = async () => { await navigator.clipboard.writeText($("payload").value); toast("Payload kopiert"); };
+    renderAll();
+  </script>
+</body>
+</html>
+
