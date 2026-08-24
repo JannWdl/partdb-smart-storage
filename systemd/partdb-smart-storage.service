@@ -1,17 +1,18 @@
 [Unit]
-Description=Part-DB Smart Storage
+Description=Part-DB Smart Storage Stack
+Documentation=https://github.com/JannWdl/partdb-smart-storage
 Requires=docker.service
-After=docker.service network-online.target
+After=docker.service docker.socket network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/partdb-smart-storage
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose stop
 TimeoutStartSec=0
+TimeoutStopSec=120
 
 [Install]
 WantedBy=multi-user.target
-

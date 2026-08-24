@@ -45,7 +45,7 @@ WLED_BASE_URL=http://DEINE-WLED-IP
 
 ## Autostart
 
-Der Installer installiert diesen Dienst:
+Der Installer installiert einen systemd-Dienst fuer den kompletten Stack. Dieser startet beim Booten immer Part-DB und Smart Storage gemeinsam:
 
 ```bash
 systemctl status partdb-smart-storage
@@ -59,3 +59,16 @@ sudo systemctl stop partdb-smart-storage
 sudo systemctl start partdb-smart-storage
 ```
 
+Autostart reparieren oder nach einem Update neu setzen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/ensure-autostart.sh
+```
+
+Container pruefen:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo docker compose ps
+```

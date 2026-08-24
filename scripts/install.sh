@@ -34,12 +34,9 @@ if [[ ! -f .env ]]; then
 fi
 
 install -d -m 0755 data/partdb/db data/partdb/uploads data/partdb/public_media data/smart-storage backups
-cp systemd/partdb-smart-storage.service /etc/systemd/system/partdb-smart-storage.service
-systemctl daemon-reload
-systemctl enable partdb-smart-storage.service
 docker compose pull
 docker compose build
-systemctl restart partdb-smart-storage.service
+./scripts/ensure-autostart.sh
 sleep 8
 ./scripts/migrate-partdb.sh
 ./scripts/setup-partdb-admin.sh

@@ -10,7 +10,11 @@ if [[ -d .git ]]; then
 fi
 docker compose pull
 docker compose build --pull
-docker compose up -d
+if [[ "${EUID:-$(id -u)}" -eq 0 ]] && command -v systemctl >/dev/null 2>&1; then
+  ./scripts/ensure-autostart.sh
+else
+  docker compose up -d --remove-orphans
+fi
 ./scripts/migrate-partdb.sh
 docker image prune -f
 
