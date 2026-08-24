@@ -105,8 +105,8 @@
       <section>
         <h2>WLED Controller</h2>
         <div class="fields">
-          <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
-          <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="96"></label>
+          <label>WLED URL <input id="wledUrl" placeholder="http://wled.local oder http://192.168.x.x"></label>
+          <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="1"></label>
           <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
           <label>Farbe <select id="color"><option value="cyan">Cyan</option><option value="blue">Blau</option><option value="yellow">Gelb</option><option value="green">Grün</option><option value="red">Rot</option><option value="white">Weiß</option></select></label>
           <label>Test Start <input id="testStart" type="number" min="0" value="0"></label>
@@ -153,13 +153,12 @@
     const colors = { cyan:[0,150,255], blue:[0,0,255], yellow:[255,180,0], green:[0,255,90], red:[255,0,0], white:[255,255,255] };
     const palette = [[255,185,0],[0,180,255],[0,255,120],[255,0,180],[255,90,0],[130,90,255],[255,255,90],[0,255,210]];
     const defaultCabinets = [
-      { id:"main", name:"Hauptmagazin", rows:5, columns:4, start_led:0, leds_per_slot:4, slot_width_mm:55, slot_height_mm:38, strip_path:"rows", serpentine:false, x:24, y:24 },
-      { id:"bottom", name:"Großes Fach unten", rows:1, columns:1, start_led:80, leds_per_slot:16, slot_width_mm:220, slot_height_mm:55, strip_path:"rows", serpentine:false, x:24, y:300 }
+      { id:"magazin-1", name:"Magazin 1", rows:1, columns:1, start_led:0, leds_per_slot:1, slot_width_mm:55, slot_height_mm:38, strip_path:"rows", serpentine:false, x:24, y:24 }
     ];
     const state = {
       wizardStep: 0,
       mode: "drawers",
-      selected: "main",
+      selected: "magazin-1",
       cabinets: structuredClone(defaultCabinets)
     };
     const $ = (id) => document.getElementById(id);
@@ -181,10 +180,10 @@
       sessionStorage.removeItem("smart-storage-wled-setup");
       state.wizardStep = 0;
       state.mode = "drawers";
-      state.selected = "main";
+      state.selected = "magazin-1";
       state.cabinets = structuredClone(defaultCabinets);
-      $("wledUrl").value = "http://192.168.178.220";
-      $("totalLeds").value = "96";
+      $("wledUrl").value = "";
+      $("totalLeds").value = "1";
       $("brightness").value = "180";
       $("color").value = "cyan";
       $("testStart").value = "0";
@@ -281,8 +280,8 @@
         };
       });
       const panels = [
-        `<strong>WLED verbinden</strong><p>Prüfe zuerst, ob der Controller erreichbar ist. Deine Storage-LEDs liegen auf LED 0 bis 95; Ambilight beginnt ab LED 96.</p><button id="wizardConnect" class="primary">Verbinden</button>`,
-        `<strong>Stripe-Länge setzen</strong><p>Für Smart Storage bleibt Gesamt-LEDs auf 96. Damit wird der Ambilight-Bereich nicht getestet.</p><button id="wizardAllOn" class="primary">Alle Storage-LEDs testen</button>`,
+        `<strong>WLED verbinden</strong><p>Trage zuerst die URL deines WLED-Controllers ein, zum Beispiel http://wled.local oder die IP-Adresse.</p><button id="wizardConnect" class="primary">Verbinden</button>`,
+        `<strong>Stripe-Länge setzen</strong><p>Trage ein, wie viele LEDs dieser Smart-Storage-Bereich wirklich verwenden darf. Bereiche außerhalb davon werden vom Test nicht angefasst.</p><button id="wizardAllOn" class="primary">Alle eingetragenen LEDs testen</button>`,
         `<strong>Magazine einrichten</strong><p>Ziehe die Blöcke, stelle Reihen, Spalten, Start-LED, Stop-LED, Strip-Verlauf und Serpentine ein. Stop-LED ist exklusiv. Du kannst dieses Fenster offen lassen und dahinter arbeiten.</p><button id="wizardLayoutDone" class="primary">Layout passt</button>`,
         `<strong>Fächer testen</strong><p>Klicke links auf einzelne Fächer oder nutze einen manuellen Bereich. Danach kannst du die Zonen anzeigen.</p><button id="wizardRange" class="primary">Bereich 0-15 testen</button>`
       ];
@@ -324,6 +323,7 @@
 
     function wledUrl(params) {
       const base = $("wledUrl").value.replace(/\/$/, "");
+      if (!base) throw new Error("Bitte zuerst WLED URL eintragen.");
       const query = Object.entries({ ...params, _: Date.now() })
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
         .join("&");
