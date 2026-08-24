@@ -6,6 +6,8 @@ let state = {
   assignments: [],
   parts: [],
   settings: null,
+  wledZones: [],
+  wledZoneMode: "drawers",
   stockEvents: [],
   setupStep: "arrangement",
   selectedCabinetId: null,
@@ -52,6 +54,8 @@ async function loadAll() {
   renderSlotSelect();
   renderAssignments();
   renderSettingsPanel();
+  await loadWledZones();
+  renderWledZonesPanel();
   renderBarcodePanel();
   renderSetupGuide();
   checkHealth();
@@ -145,6 +149,97 @@ function renderSettingsPanel() {
   $("testWledBtn").onclick = testWled;
 }
 
+async function loadWledZones() {
+  const data = await api(`/api/wled/zones?mode=${encodeURIComponent(state.wledZoneMode)}`);
+  state.wledZones = data.zones;
+}
+
+function renderWledZonesPanel() {
+  const root = $("wledZonesPanel");
+  const zones = state.wledZones || [];
+  const totalLeds = zones.reduce((max, zone) => Math.max(max, zone.led_stop), 0);
+  root.innerHTML = `
+    <div class="segmented">
+      <button class="${state.wledZoneMode === "drawers" ? "active" : ""}" data-zone-mode="drawers">Fächer</button>
+      <button class="${state.wledZoneMode === "cabinets" ? "active" : ""}" data-zone-mode="cabinets">Magazinblöcke</button>
+    </div>
+    <div class="fields settings-fields">
+      <label>Helligkeit <input id="zoneBrightness" type="range" min="1" max="255" value="180"></label>
+      <label>WLED-Ziel <input value="${state.settings?.wled_url || ""}" disabled></label>
+    </div>
+    <div class="zone-summary"><b>${zones.length} Zonen</b><span>${totalLeds} LEDs belegt</span></div>
+    <div id="zoneMap" class="zone-map"></div>
+    <div class="wizard-actions">
+      <button id="applyZonesBtn" class="primary">Zonen an WLED senden</button>
+      <button id="zoneOffBtn">LEDs aus</button>
+    </div>
+  `;
+  document.querySelectorAll("[data-zone-mode]").forEach((button) => {
+    button.onclick = async () => {
+      state.wledZoneMode = button.dataset.zoneMode;
+      await loadWledZones();
+      renderWledZonesPanel();
+    };
+  });
+  $("applyZonesBtn").onclick = applyWledZones;
+  $("zoneOffBtn").onclick = () => api("/api/wled/off", { method: "POST" }).then(() => toast("LEDs aus."));
+  renderZoneMap();
+}
+
+function renderZoneMap() {
+  const root = $("zoneMap");
+  root.innerHTML = "";
+  const layout = state.layout || { cabinets: [] };
+  if (state.wledZoneMode === "cabinets") {
+    for (const zone of state.wledZones) {
+      const cabinet = layout.cabinets.find((item) => item.id === zone.cabinet_id) || {};
+      root.appendChild(zoneCard(zone, `${cabinet.rows || "?"} x ${cabinet.columns || "?"}`));
+    }
+    return;
+  }
+  for (const cabinet of layout.cabinets) {
+    const block = document.createElement("div");
+    block.className = "zone-cabinet";
+    block.innerHTML = `<div class="cabinet-title"><h3>${cabinet.name}</h3><p>${cabinet.rows} x ${cabinet.columns}</p></div>`;
+    const grid = document.createElement("div");
+    grid.className = "zone-grid";
+    grid.style.gridTemplateColumns = `repeat(${cabinet.columns}, minmax(46px, 1fr))`;
+    state.wledZones.filter((zone) => zone.cabinet_id === cabinet.id).forEach((zone) => {
+      grid.appendChild(zoneCard(zone, `${zone.row}/${zone.column}`));
+    });
+    block.appendChild(grid);
+    root.appendChild(block);
+  }
+}
+
+function zoneCard(zone, meta) {
+  const card = document.createElement("button");
+  card.className = "zone-card";
+  card.style.borderColor = `rgb(${zone.color.join(",")})`;
+  card.style.background = `linear-gradient(135deg, rgba(${zone.color.join(",")}, .26), rgba(36,42,50,.96))`;
+  card.innerHTML = `<b>${zone.label}</b><small>${meta} · LED ${zone.led_start}-${zone.led_stop - 1}</small>`;
+  card.onclick = () => testZone(zone);
+  return card;
+}
+
+async function testZone(zone) {
+  await api("/api/wled/range", {
+    method: "POST",
+    body: JSON.stringify({ start: zone.led_start, stop: zone.led_stop, mode: "test" }),
+  });
+  beep("locate");
+  toast(`${zone.label}: LED ${zone.led_start}-${zone.led_stop - 1}`);
+}
+
+async function applyWledZones() {
+  const result = await api("/api/wled/apply-zones", {
+    method: "POST",
+    body: JSON.stringify({ mode: state.wledZoneMode, brightness: Number($("zoneBrightness").value || 180) }),
+  });
+  beep("success");
+  toast(`${result.zones.length} WLED-Zonen gesendet.`);
+}
+
 function renderBarcodePanel() {
   const cfg = state.settings || {};
   const root = $("barcodePanel");
@@ -207,6 +302,8 @@ async function saveSettings() {
   });
   toast("Einstellungen gespeichert.");
   await checkHealth();
+  await loadWledZones();
+  renderWledZonesPanel();
   renderBarcodePanel();
 }
 

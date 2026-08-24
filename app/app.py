@@ -40,6 +40,17 @@ DEFAULT_COLORS = {
     "test": [0, 140, 255],
 }
 
+ZONE_PALETTE = [
+    [255, 185, 0],
+    [0, 180, 255],
+    [0, 255, 120],
+    [255, 0, 180],
+    [255, 90, 0],
+    [130, 90, 255],
+    [255, 255, 90],
+    [0, 255, 210],
+]
+
 app = FastAPI(title="Part-DB Smart Storage", version="0.2.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -268,6 +279,60 @@ def wled_state_for_slot(slot, color_name="locate"):
             "pal": 0,
         }],
     }
+
+
+def wled_zones(mode="drawers"):
+    layout = read_layout()
+    slots = computed_slots(layout)
+    zones = []
+    if mode == "cabinets":
+        for index, cabinet in enumerate(layout["cabinets"]):
+            cabinet_slots = [slot for slot in slots if slot["cabinet_id"] == cabinet["id"]]
+            if not cabinet_slots:
+                continue
+            start = min(slot["led_start"] for slot in cabinet_slots)
+            stop = max(slot["led_stop"] for slot in cabinet_slots)
+            zones.append({
+                "id": cabinet["id"],
+                "label": cabinet["name"],
+                "type": "cabinet",
+                "cabinet_id": cabinet["id"],
+                "led_start": start,
+                "led_stop": stop,
+                "color": ZONE_PALETTE[index % len(ZONE_PALETTE)],
+                "slots": len(cabinet_slots),
+            })
+        return zones
+    for index, slot in enumerate(slots):
+        zones.append({
+            "id": slot["id"],
+            "label": slot["label"],
+            "type": "drawer",
+            "cabinet_id": slot["cabinet_id"],
+            "cabinet_name": slot["cabinet_name"],
+            "row": slot["row"],
+            "column": slot["column"],
+            "led_start": slot["led_start"],
+            "led_stop": slot["led_stop"],
+            "color": ZONE_PALETTE[index % len(ZONE_PALETTE)],
+            "slots": 1,
+        })
+    return zones
+
+
+def wled_segments_for_zones(zones, brightness=180):
+    return [{
+        "id": index,
+        "start": zone["led_start"],
+        "stop": zone["led_stop"],
+        "on": True,
+        "bri": int(brightness),
+        "col": [zone["color"], [0, 0, 0], [0, 0, 0]],
+        "fx": 0,
+        "sx": 128,
+        "ix": 128,
+        "pal": 0,
+    } for index, zone in enumerate(zones)]
 
 
 def call_wled(payload):
@@ -520,6 +585,31 @@ def api_wled_test(data: dict = Body(default={})):
     response = requests.get(f"{url}/json/info", timeout=2)
     response.raise_for_status()
     return {"ok": True, "info": response.json()}
+
+
+@app.get("/api/wled/zones")
+def api_wled_zones(mode: str = "drawers"):
+    if mode not in ("drawers", "cabinets"):
+        raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
+    zones = wled_zones(mode)
+    return {"mode": mode, "zones": zones, "segments": wled_segments_for_zones(zones)}
+
+
+@app.post("/api/wled/apply-zones")
+def api_wled_apply_zones(data: dict = Body(default={})):
+    mode = data.get("mode", "drawers")
+    brightness = int(data.get("brightness", 180))
+    if mode not in ("drawers", "cabinets"):
+        raise HTTPException(status_code=400, detail="mode muss drawers oder cabinets sein.")
+    zones = wled_zones(mode)
+    payload = {
+        "on": True,
+        "bri": max(1, min(255, brightness)),
+        "transition": 7,
+        "mainseg": 0,
+        "seg": wled_segments_for_zones(zones, brightness),
+    }
+    return {"ok": True, "mode": mode, "zones": zones, "wled": call_wled(payload)}
 
 
 @app.post("/api/wled/off")

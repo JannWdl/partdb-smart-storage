@@ -52,6 +52,15 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["kind"], "error")
 
+    def test_wled_zones_can_be_created_by_drawer_or_cabinet(self):
+        backend = self.load_app_module()
+        drawer_zones = backend.wled_zones("drawers")
+        cabinet_zones = backend.wled_zones("cabinets")
+        self.assertEqual(len(drawer_zones), 21)
+        self.assertEqual(len(cabinet_zones), 2)
+        self.assertEqual(drawer_zones[0]["led_start"], 0)
+        self.assertEqual(cabinet_zones[0]["led_stop"], 80)
+
 
 if __name__ == "__main__":
     unittest.main()

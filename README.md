@@ -121,6 +121,17 @@ Standardcodes:
 
 Die aktuelle Scan-Session läuft standardmäßig nach 30 Sekunden ab. Erfolg wird grün signalisiert, Fehler rot, Wunschliste blau und Locate gelb.
 
+## WLED-Zonen
+
+Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem aktuellen Magazinlayout automatisch WLED-Segmente:
+
+- Modus `Fächer`: jedes Fach ist eine eigene Zone.
+- Modus `Magazinblöcke`: jeder grafische Magazinblock ist eine Zone.
+- Klick auf eine Zone testet den LED-Bereich direkt am Controller.
+- `Zonen an WLED senden` schreibt die generierten Segmente in WLED.
+
+Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.
+
 ## Wartung
 
 Update:

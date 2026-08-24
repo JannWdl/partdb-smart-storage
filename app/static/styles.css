@@ -181,6 +181,80 @@ textarea {
   margin-bottom: 10px;
 }
 
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.segmented button {
+  min-height: 36px;
+  padding: 7px;
+  color: var(--muted);
+}
+
+.segmented button.active {
+  color: var(--accent);
+  border-color: #6f5a1e;
+  background: #2c271b;
+}
+
+.zone-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.zone-summary span {
+  color: var(--muted);
+}
+
+.zone-map {
+  display: grid;
+  gap: 12px;
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.zone-cabinet {
+  border-top: 1px solid #303842;
+  padding-top: 10px;
+}
+
+.zone-grid {
+  display: grid;
+  gap: 7px;
+}
+
+.zone-card {
+  min-height: 54px;
+  padding: 8px;
+  text-align: left;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.zone-card b {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zone-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
 .wizard-tabs button {
   min-height: 36px;
   padding: 7px;

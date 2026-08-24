@@ -94,6 +94,23 @@ Content-Type: application/json
 {"wled_url": "http://192.168.178.220"}
 ```
 
+## WLED-Zonen erzeugen und anwenden
+
+```http
+GET /api/wled/zones?mode=drawers
+GET /api/wled/zones?mode=cabinets
+POST /api/wled/apply-zones
+```
+
+```json
+{
+  "mode": "drawers",
+  "brightness": 180
+}
+```
+
+`drawers` erzeugt eine WLED-Zone pro Fach. `cabinets` erzeugt eine WLED-Zone pro Magazinblock.
+
 ## Teil suchen und Fach leuchten lassen
 
 ```http
