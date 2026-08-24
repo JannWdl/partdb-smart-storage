@@ -266,7 +266,8 @@ def wled_state_for_slot(slot, color_name="locate"):
         "on": True,
         "bri": 220,
         "transition": 4,
-        "seg": [{
+        "mainseg": 0,
+        "seg": wled_clear_segments() + [{
             "id": 0,
             "start": int(slot["led_start"]),
             "stop": int(slot["led_stop"]),
@@ -279,6 +280,10 @@ def wled_state_for_slot(slot, color_name="locate"):
             "pal": 0,
         }],
     }
+
+
+def wled_clear_segments():
+    return [{"id": segment_id, "stop": 0} for segment_id in range(1, 32)]
 
 
 def wled_zones(mode="drawers"):

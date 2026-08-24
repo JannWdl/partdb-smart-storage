@@ -395,10 +395,18 @@ function computePreviewSlots(layout) {
     const columns = Number(cabinet.columns || 1);
     const startLed = Number(cabinet.start_led || 0);
     const ledsPerSlot = Number(cabinet.leds_per_slot || 1);
+    const wiringOrder = cabinet.wiring_order || "rows";
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        const physicalCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
-        const ledStart = startLed + ((row * columns + physicalCol) * ledsPerSlot);
+        let offset;
+        if (wiringOrder === "columns") {
+          const physicalRow = cabinet.serpentine && col % 2 ? rows - 1 - row : row;
+          offset = (col * rows + physicalRow) * ledsPerSlot;
+        } else {
+          const physicalCol = cabinet.serpentine && row % 2 ? columns - 1 - col : col;
+          offset = (row * columns + physicalCol) * ledsPerSlot;
+        }
+        const ledStart = startLed + (offset * ledsPerSlot);
         slots.push({
           id: `${cabinet.id}-${row + 1}-${col + 1}`,
           label: `${cabinet.slot_prefix || "Fach"} ${globalIndex}`,
@@ -548,6 +556,7 @@ function renderLedStep(root) {
         <label>Start-LED <input type="number" min="0" data-draft-i="${index}" data-k="start_led" value="${cabinet.start_led}"></label>
         <label>LEDs pro Fach <input type="number" min="1" data-draft-i="${index}" data-k="leds_per_slot" value="${cabinet.leds_per_slot}"></label>
         <label>Fach-Beschriftung <input data-draft-i="${index}" data-k="slot_prefix" value="${cabinet.slot_prefix || "Fach"}"></label>
+        <label>Verdrahtung <select data-draft-i="${index}" data-k="wiring_order"><option value="rows" ${cabinet.wiring_order !== "columns" ? "selected" : ""}>Zeilenweise</option><option value="columns" ${cabinet.wiring_order === "columns" ? "selected" : ""}>Spaltenweise</option></select></label>
         <label class="checkline"><input type="checkbox" data-draft-i="${index}" data-k="serpentine" ${cabinet.serpentine ? "checked" : ""}> Serpentine</label>
       </div>
       <p class="meta">${slots.length} Fächer · LED ${cabinet.start_led}-${last} · ${cabinet.slot_width_mm || 0} x ${cabinet.slot_height_mm || 0} mm</p>
@@ -682,6 +691,7 @@ function addCabinet(kind = "grid") {
     slot_height_mm: isLarge ? 55 : 38,
     x: 24 + (next % 2) * 160,
     y: 24 + Math.floor(next / 2) * 130,
+    wiring_order: "rows",
     serpentine: false,
     slot_prefix: "Fach",
   };

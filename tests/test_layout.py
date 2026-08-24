@@ -41,6 +41,27 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(slots[4]["leds"], [18, 19])
         self.assertEqual(slots[5]["leds"], [16, 17])
 
+    def test_column_wiring_maps_down_each_column(self):
+        layout = {
+            "name": "Column wiring",
+            "cabinets": [
+                {
+                    "id": "a",
+                    "name": "A",
+                    "rows": 3,
+                    "columns": 2,
+                    "start_led": 0,
+                    "leds_per_slot": 1,
+                    "wiring_order": "columns",
+                }
+            ],
+        }
+        slots = self.core.computed_slots(layout)
+        self.assertEqual(slots[0]["leds"], [0])
+        self.assertEqual(slots[2]["leds"], [1])
+        self.assertEqual(slots[4]["leds"], [2])
+        self.assertEqual(slots[1]["leds"], [3])
+
 
 if __name__ == "__main__":
     unittest.main()

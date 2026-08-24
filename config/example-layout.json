@@ -13,6 +13,7 @@
       "slot_height_mm": 38,
       "x": 24,
       "y": 24,
+      "wiring_order": "rows",
       "serpentine": false,
       "slot_prefix": "Fach"
     },
@@ -27,6 +28,7 @@
       "slot_height_mm": 55,
       "x": 24,
       "y": 270,
+      "wiring_order": "rows",
       "serpentine": false,
       "slot_prefix": "Fach"
     }

@@ -13,6 +13,7 @@ DEFAULT_LAYOUT = {
             "slot_height_mm": 38,
             "x": 24,
             "y": 24,
+            "wiring_order": "rows",
             "serpentine": False,
             "slot_prefix": "Fach",
         },
@@ -27,6 +28,7 @@ DEFAULT_LAYOUT = {
             "slot_height_mm": 55,
             "x": 24,
             "y": 270,
+            "wiring_order": "rows",
             "serpentine": False,
             "slot_prefix": "Fach",
         },
@@ -45,6 +47,8 @@ def validate_layout(layout):
             raise ValueError("Reihen und Spalten muessen groesser als 0 sein.")
         if int(cabinet["leds_per_slot"]) < 1:
             raise ValueError("LEDs pro Fach muss groesser als 0 sein.")
+        if cabinet.get("wiring_order", "rows") not in ("rows", "columns"):
+            raise ValueError("wiring_order muss rows oder columns sein.")
 
 
 def computed_slots(layout):
@@ -56,10 +60,15 @@ def computed_slots(layout):
         start_led = int(cabinet["start_led"])
         leds_per_slot = int(cabinet["leds_per_slot"])
         serpentine = bool(cabinet.get("serpentine"))
+        wiring_order = cabinet.get("wiring_order", "rows")
         for row in range(rows):
             for col in range(columns):
-                physical_col = columns - 1 - col if serpentine and row % 2 else col
-                offset = (row * columns + physical_col) * leds_per_slot
+                if wiring_order == "columns":
+                    physical_row = rows - 1 - row if serpentine and col % 2 else row
+                    offset = (col * rows + physical_row) * leds_per_slot
+                else:
+                    physical_col = columns - 1 - col if serpentine and row % 2 else col
+                    offset = (row * columns + physical_col) * leds_per_slot
                 led_start = start_led + offset
                 slot_id = f"{cabinet['id']}-{row + 1}-{col + 1}"
                 label = f"{cabinet.get('slot_prefix', 'Fach')} {global_index}"

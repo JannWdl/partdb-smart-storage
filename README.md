@@ -129,6 +129,7 @@ Die Oberfläche enthält einen WLED-Zonen Visual Creator. Er erzeugt aus dem akt
 - Modus `Magazinblöcke`: jeder grafische Magazinblock ist eine Zone.
 - Klick auf eine Zone testet den LED-Bereich direkt am Controller.
 - `Zonen an WLED senden` schreibt die generierten Segmente in WLED.
+- Wenn ein Klick auf ein oberes Fach eine ganze Spalte beleuchtet, im Setup-Assistenten beim Magazinblock die Verdrahtung von `Zeilenweise` auf `Spaltenweise` stellen.
 
 Die WLED-URL wird in den Einstellungen gesetzt und kann dort direkt getestet werden.
 
