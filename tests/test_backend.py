@@ -102,6 +102,18 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["kind"], "error")
 
+    def test_drawer_scan_lights_the_whole_slot_range(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "call_wled", return_value={"ok": True}) as wled:
+            result = backend.api_scan({"code": "DRAWER:1"})
+        self.assertTrue(result["ok"])
+        self.assertIn("LED 0-3", result["message"])
+        payload = wled.call_args.args[0]
+        segment = payload["seg"][-1]
+        self.assertEqual(segment["start"], 0)
+        self.assertEqual(segment["stop"], 4)
+        self.assertEqual(segment["i"][0::2], [0, 1, 2, 3])
+
     def test_scan_action_can_run_in_local_test_mode(self):
         backend = self.load_app_module()
         backend.save_settings({"partdb_stock_write_enabled": False})

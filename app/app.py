@@ -496,22 +496,28 @@ def local_assignment_search(query):
 
 def wled_state_for_slot(slot, color_name="locate"):
     color = DEFAULT_COLORS.get(color_name, DEFAULT_COLORS["locate"])
+    led_start = int(slot["led_start"])
+    led_stop = int(slot["led_stop"])
+    pixels = []
+    for led in range(led_start, led_stop):
+        pixels.extend([led, color])
     return {
         "on": True,
         "bri": 220,
-        "transition": 4,
+        "transition": 0,
         "mainseg": 0,
         "seg": wled_clear_segments() + [{
             "id": 0,
-            "start": int(slot["led_start"]),
-            "stop": int(slot["led_stop"]),
+            "start": 0,
+            "stop": led_stop,
             "on": True,
             "bri": 255,
             "col": [color, [0, 0, 0], [0, 0, 0]],
-            "fx": 2 if color_name == "locate" else 0,
+            "fx": 0,
             "sx": 140,
             "ix": 180,
             "pal": 0,
+            "i": pixels,
         }],
     }
 
@@ -953,7 +959,7 @@ def api_scan(data: dict = Body(...)):
         if assignment and not session.get("partdb_part_id"):
             session["partdb_part_id"] = assignment["partdb_part_id"]
             session["part_name"] = assignment["part_name"]
-        return {"ok": True, "session": save_session(session), **feedback("locate", f"{slot['label']} gewählt.", slot)}
+        return {"ok": True, "session": save_session(session), **feedback("locate", f"{slot['label']} gewaehlt: LED {slot['led_start']}-{slot['led_stop'] - 1}.", slot)}
     if upper in ("ADD", "REMOVE", "WISHLIST"):
         return handle_action(upper, code)
     record_stock_event("scan_error", session.get("partdb_part_id"), session.get("part_name"), session.get("drawer_id"), 1, code, "Unbekannter Barcode.", status="failed")
