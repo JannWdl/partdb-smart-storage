@@ -1,6 +1,6 @@
 # API
 
-Die Smart-Storage-App stellt eine kleine JSON-API bereit.
+Die Smart-Storage-App stellt eine JSON-API per FastAPI bereit. Die automatische OpenAPI-Doku ist unter `/docs` erreichbar.
 
 ## Status
 
@@ -20,7 +20,7 @@ Antwort:
 GET /api/layout
 ```
 
-Liefert Layout und berechnete Faecher inklusive LED-Bereichen.
+Liefert Layout und berechnete Fächer inklusive LED-Bereichen.
 
 ## Layout speichern
 
@@ -41,11 +41,34 @@ Content-Type: application/json
         "columns": 4,
         "start_led": 0,
         "leds_per_slot": 4,
+        "slot_width_mm": 55,
+        "slot_height_mm": 38,
+        "x": 24,
+        "y": 24,
         "serpentine": false,
         "slot_prefix": "Fach"
       }
     ]
   }
+}
+```
+
+## Einstellungen
+
+```http
+GET /api/settings
+PUT /api/settings
+```
+
+```json
+{
+  "partdb_url": "http://partdb.local:8080",
+  "partdb_internal_url": "http://partdb:80",
+  "partdb_api_token": "",
+  "wled_url": "http://192.168.178.220",
+  "barcode_enabled": true,
+  "barcode_camera_enabled": true,
+  "scan_timeout_seconds": 30
 }
 ```
 
@@ -58,6 +81,17 @@ Content-Type: application/json
 
 ```json
 {"mode": "locate"}
+```
+
+## WLED testen
+
+```http
+POST /api/wled/test
+Content-Type: application/json
+```
+
+```json
+{"wled_url": "http://192.168.178.220"}
 ```
 
 ## Teil suchen und Fach leuchten lassen
@@ -88,3 +122,25 @@ Content-Type: application/json
 }
 ```
 
+## Barcode-Scan
+
+```http
+POST /api/scan
+Content-Type: application/json
+```
+
+```json
+{"code": "PART:123"}
+```
+
+Unterstützte Codes: `PART:<partdb_id>`, `DRAWER:<drawer_id>`, `ADD`, `REMOVE`, `WISHLIST`, `CANCEL`.
+
+## Lokale Bestandsbuchungen
+
+```http
+POST /api/stock/add
+POST /api/stock/remove
+GET /api/stock/events
+```
+
+Die Buchungen werden lokal protokolliert und verändern Part-DB-Bestände in v1 nicht direkt.

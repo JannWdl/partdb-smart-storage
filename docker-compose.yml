@@ -30,8 +30,10 @@ services:
       PARTDB_PUBLIC_URL: ${PARTDB_PUBLIC_URL:-http://partdb.local:8080}
       PARTDB_API_TOKEN: ${PARTDB_API_TOKEN:-}
       WLED_BASE_URL: ${WLED_BASE_URL:-http://192.168.178.220}
+      BARCODE_ENABLED: ${BARCODE_ENABLED:-true}
+      BARCODE_CAMERA_ENABLED: ${BARCODE_CAMERA_ENABLED:-true}
+      SCAN_TIMEOUT_SECONDS: ${SCAN_TIMEOUT_SECONDS:-30}
       TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./data/smart-storage:/data
       - ./config:/config:ro
-

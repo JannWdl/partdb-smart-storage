@@ -1,4 +1,19 @@
-let state = { layout: null, draftLayout: null, slots: [], previewSlots: [], assignments: [], parts: [], setupStep: "arrangement", selectedCabinetId: null, drag: null };
+let state = {
+  layout: null,
+  draftLayout: null,
+  slots: [],
+  previewSlots: [],
+  assignments: [],
+  parts: [],
+  settings: null,
+  stockEvents: [],
+  setupStep: "arrangement",
+  selectedCabinetId: null,
+  cameraStream: null,
+  cameraTimer: null,
+  lastCameraCode: "",
+  lastCameraAt: 0,
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,7 +31,8 @@ async function api(url, options = {}) {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(body.error || response.statusText);
+    const detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail || response.statusText);
+    throw new Error(body.error || body.detail?.message || detail);
   }
   return response.json();
 }
@@ -30,9 +46,13 @@ async function loadAll() {
   state.slots = layout.slots;
   state.previewSlots = layout.slots;
   state.assignments = await api("/api/assignments");
+  state.settings = await api("/api/settings");
+  state.stockEvents = await api("/api/stock/events?limit=20");
   renderMagazines();
   renderSlotSelect();
   renderAssignments();
+  renderSettingsPanel();
+  renderBarcodePanel();
   renderSetupGuide();
   checkHealth();
 }
@@ -101,6 +121,173 @@ function renderAssignments() {
     row.appendChild(remove);
     root.appendChild(row);
   }
+}
+
+function renderSettingsPanel() {
+  const root = $("settingsPanel");
+  const cfg = state.settings || {};
+  root.innerHTML = `
+    <div class="fields settings-fields">
+      <label>Part-DB URL <input id="settingPartdbUrl" value="${cfg.partdb_url || ""}"></label>
+      <label>Part-DB intern <input id="settingPartdbInternalUrl" value="${cfg.partdb_internal_url || ""}"></label>
+      <label>API-Token <input id="settingPartdbToken" type="password" value="${cfg.partdb_api_token || ""}"></label>
+      <label>WLED URL <input id="settingWledUrl" value="${cfg.wled_url || ""}"></label>
+      <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
+      <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
+      <label class="checkline"><input id="settingCameraEnabled" type="checkbox" ${cfg.barcode_camera_enabled ? "checked" : ""}> Kamera-Scanner aktiv</label>
+    </div>
+    <div class="wizard-actions">
+      <button id="saveSettingsBtn" class="primary">Speichern</button>
+      <button id="testWledBtn">WLED testen</button>
+    </div>
+  `;
+  $("saveSettingsBtn").onclick = saveSettings;
+  $("testWledBtn").onclick = testWled;
+}
+
+function renderBarcodePanel() {
+  const cfg = state.settings || {};
+  const root = $("barcodePanel");
+  root.innerHTML = `
+    <p class="meta">Codes: PART:&lt;id&gt;, DRAWER:&lt;fach-id&gt;, ADD, REMOVE, WISHLIST, CANCEL</p>
+    <div class="form-grid barcode-line">
+      <input id="scanInput" placeholder="Scanner-Fokus: Barcode scannen oder eintippen" ${cfg.barcode_enabled ? "" : "disabled"}>
+      <button id="scanBtn" ${cfg.barcode_enabled ? "" : "disabled"}>Senden</button>
+    </div>
+    <div class="wizard-actions">
+      <button id="cameraBtn" ${cfg.barcode_enabled && cfg.barcode_camera_enabled ? "" : "disabled"}>Kamera starten</button>
+      <button id="cameraStopBtn">Kamera stoppen</button>
+    </div>
+    <video id="cameraPreview" muted playsinline></video>
+    <div id="scanStatus" class="status-line"></div>
+    <div id="stockEvents"></div>
+  `;
+  $("scanBtn").onclick = () => sendScan($("scanInput").value).catch((error) => showScanError(error.message));
+  $("scanInput").onkeydown = (event) => {
+    if (event.key === "Enter") sendScan(event.currentTarget.value).catch((error) => showScanError(error.message));
+  };
+  $("cameraBtn").onclick = () => startCameraScanner().catch((error) => showScanError(error.message));
+  $("cameraStopBtn").onclick = stopCameraScanner;
+  renderStockEvents();
+}
+
+function showScanError(message) {
+  beep("error");
+  $("scanStatus").textContent = message;
+  toast(message);
+}
+
+function renderStockEvents() {
+  const root = $("stockEvents");
+  if (!state.stockEvents.length) {
+    root.innerHTML = `<p class="meta">Noch keine lokalen Buchungen.</p>`;
+    return;
+  }
+  root.innerHTML = state.stockEvents.map((event) => `
+    <div class="event-row">
+      <b>${event.event_type}</b>
+      <span>${event.part_name || event.partdb_part_id || "ohne Teil"}</span>
+      <small>${event.drawer_id || ""}</small>
+    </div>
+  `).join("");
+}
+
+async function saveSettings() {
+  state.settings = await api("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify({
+      partdb_url: $("settingPartdbUrl").value,
+      partdb_internal_url: $("settingPartdbInternalUrl").value,
+      partdb_api_token: $("settingPartdbToken").value,
+      wled_url: $("settingWledUrl").value,
+      scan_timeout_seconds: Number($("settingTimeout").value || 30),
+      barcode_enabled: $("settingBarcodeEnabled").checked,
+      barcode_camera_enabled: $("settingCameraEnabled").checked,
+    }),
+  });
+  toast("Einstellungen gespeichert.");
+  await checkHealth();
+  renderBarcodePanel();
+}
+
+async function testWled() {
+  await api("/api/wled/test", {
+    method: "POST",
+    body: JSON.stringify({ wled_url: $("settingWledUrl").value }),
+  });
+  beep("success");
+  toast("WLED ist erreichbar.");
+}
+
+function beep(kind) {
+  try {
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const freq = { success: 880, error: 180, wishlist: 520, locate: 660 }[kind] || 440;
+    oscillator.frequency.value = freq;
+    gain.gain.value = 0.06;
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.12);
+  } catch {
+    // Audio feedback is best-effort only.
+  }
+}
+
+async function sendScan(rawCode) {
+  const code = String(rawCode || "").trim();
+  if (!code) return;
+  $("scanInput").value = "";
+  const result = await api("/api/scan", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+  beep(result.audio || result.kind || (result.ok ? "success" : "error"));
+  $("scanStatus").textContent = result.message || "Scan verarbeitet.";
+  toast(result.message || "Scan verarbeitet.");
+  state.stockEvents = await api("/api/stock/events?limit=20");
+  renderStockEvents();
+}
+
+async function startCameraScanner() {
+  if (!("BarcodeDetector" in window)) {
+    $("scanStatus").textContent = "Dieser Browser unterstützt BarcodeDetector nicht. USB-Scanner oder Chrome/Android verwenden.";
+    beep("error");
+    return;
+  }
+  const video = $("cameraPreview");
+  state.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  video.srcObject = state.cameraStream;
+  await video.play();
+  const detector = new BarcodeDetector({ formats: ["qr_code", "code_128", "ean_13", "ean_8"] });
+  state.cameraTimer = window.setInterval(async () => {
+    try {
+      const codes = await detector.detect(video);
+      if (codes.length) {
+        const value = codes[0].rawValue;
+        const now = Date.now();
+        if (value !== state.lastCameraCode || now - state.lastCameraAt > 2500) {
+          state.lastCameraCode = value;
+          state.lastCameraAt = now;
+          await sendScan(value);
+        }
+      }
+    } catch {
+      stopCameraScanner();
+      $("scanStatus").textContent = "Kamera-Scan wurde gestoppt.";
+    }
+  }, 900);
+}
+
+function stopCameraScanner() {
+  if (state.cameraTimer) window.clearInterval(state.cameraTimer);
+  state.cameraTimer = null;
+  if (state.cameraStream) state.cameraStream.getTracks().forEach((track) => track.stop());
+  state.cameraStream = null;
+  const video = $("cameraPreview");
+  if (video) video.srcObject = null;
 }
 
 function computePreviewSlots(layout) {

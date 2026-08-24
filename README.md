@@ -11,6 +11,9 @@ Reproduzierbares Raspberry-Pi-Projekt für Part-DB, WLED und ein visuelles Klein
 - Speichert Teil-zu-Fach-Zuordnungen in einer eigenen SQLite-Datenbank.
 - Sucht Teile in Part-DB, sofern die Part-DB-API erreichbar ist.
 - Testet einzelne Fächer direkt am WLED-Controller.
+- Verwaltet Part-DB-, WLED- und Barcode-Einstellungen in der Oberfläche.
+- Unterstützt USB-Barcode-Scanner und Browser-Kamera-Scanner.
+- Protokolliert lokale Bestandsbuchungen, ohne Part-DB-Bestände direkt zu verändern.
 - Bietet Locate-Suche: Teil suchen, passendes Fach leuchtet.
 - Enthält Install, Update, Backup, Restore und Uninstall.
 - Läuft nach Installation automatisch über systemd.
@@ -58,11 +61,14 @@ PARTDB_PUBLIC_URL=http://partdb.local:8080
 PARTDB_INTERNAL_URL=http://partdb:80
 PARTDB_API_TOKEN=
 WLED_BASE_URL=http://192.168.178.220
+BARCODE_ENABLED=true
+BARCODE_CAMERA_ENABLED=true
+SCAN_TIMEOUT_SECONDS=30
 APP_PORT=8090
 PARTDB_PORT=8080
 ```
 
-Wenn Part-DB ohne API-Token läuft, kann die Smart-Storage-App trotzdem lokale Zuordnungen verwalten. Für echte Part-DB-Suche sollte in Part-DB ein API-Token erzeugt und als `PARTDB_API_TOKEN` eingetragen werden.
+Diese Werte dienen als Startwerte. Nach der Installation können Part-DB-URL, WLED-URL und Barcode-Schalter direkt in der Smart-Storage-Oberfläche geändert werden. Wenn Part-DB ohne API-Token läuft, kann die App trotzdem lokale Zuordnungen und Buchungen verwalten.
 
 Nach Änderungen:
 
@@ -99,6 +105,21 @@ Eine Beispielkonfiguration liegt in `config/example-layout.json`.
 6. Das Fach leuchtet am WLED-Controller.
 
 Später reicht die Suche oben links: Teilname eingeben, `Suchen & leuchten` klicken.
+
+## Barcode
+
+Das Barcode-Modul ist optional. Unterstützt werden USB-Scanner als Tastatureingabe und Browser-Kamera-Scanner, sofern der Browser `BarcodeDetector` unterstützt.
+
+Standardcodes:
+
+- `PART:<partdb_id>` wählt ein Teil.
+- `DRAWER:<drawer_id>` wählt ein Fach.
+- `ADD` bucht lokal Zugang.
+- `REMOVE` bucht lokal Abgang.
+- `WISHLIST` markiert lokal Nachkauf/Wunschliste.
+- `CANCEL` beendet die aktuelle Scan-Session.
+
+Die aktuelle Scan-Session läuft standardmäßig nach 30 Sekunden ab. Erfolg wird grün signalisiert, Fehler rot, Wunschliste blau und Locate gelb.
 
 ## Wartung
 

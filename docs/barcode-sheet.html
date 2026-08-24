@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Part-DB Smart Storage Barcode-Bogen</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <style>
+    body { font-family: system-ui, Segoe UI, sans-serif; margin: 24px; color: #111; }
+    h1 { font-size: 24px; margin: 0 0 16px; }
+    h2 { font-size: 16px; margin: 24px 0 10px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .label { border: 1px solid #999; border-radius: 6px; padding: 10px; min-height: 104px; break-inside: avoid; }
+    .label b { display: block; margin-bottom: 4px; }
+    svg { width: 100%; height: 58px; }
+    @media print { body { margin: 10mm; } .label { border-color: #333; } }
+  </style>
+</head>
+<body>
+  <h1>Part-DB Smart Storage Barcode-Bogen</h1>
+  <h2>Aktionen</h2>
+  <div class="grid">
+    <div class="label"><b>Zugang buchen</b><svg data-code="ADD"></svg></div>
+    <div class="label"><b>Abgang buchen</b><svg data-code="REMOVE"></svg></div>
+    <div class="label"><b>Wunschliste</b><svg data-code="WISHLIST"></svg></div>
+    <div class="label"><b>Abbrechen</b><svg data-code="CANCEL"></svg></div>
+  </div>
+  <h2>Beispiel-Fächer</h2>
+  <div class="grid">
+    <div class="label"><b>Fach main-1-1</b><svg data-code="DRAWER:main-1-1"></svg></div>
+    <div class="label"><b>Fach main-1-2</b><svg data-code="DRAWER:main-1-2"></svg></div>
+    <div class="label"><b>Fach bottom-1-1</b><svg data-code="DRAWER:bottom-1-1"></svg></div>
+  </div>
+  <h2>Beispiel-Teile</h2>
+  <div class="grid">
+    <div class="label"><b>Teil 123</b><svg data-code="PART:123"></svg></div>
+    <div class="label"><b>Teil 456</b><svg data-code="PART:456"></svg></div>
+    <div class="label"><b>Teil 789</b><svg data-code="PART:789"></svg></div>
+  </div>
+  <script>
+    document.querySelectorAll("svg[data-code]").forEach((el) => {
+      JsBarcode(el, el.dataset.code, { format: "CODE128", displayValue: true, fontSize: 14, margin: 4 });
+    });
+  </script>
+</body>
+</html>
+
