@@ -248,13 +248,34 @@
       };
     }
     function testPayload(z) {
-      return segmentPayload([{ ...z, color:[0,140,255] }], 220);
+      return {
+        on:true,
+        bri:220,
+        transition:0,
+        mainseg:0,
+        seg:[{
+          id:0,
+          start:z.led_start,
+          stop:z.led_stop,
+          on:true,
+          bri:255,
+          col:[[0,140,255], [0,0,0], [0,0,0]],
+          fx:0,
+          sx:128,
+          ix:128,
+          pal:0
+        }]
+      };
     }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");
-      const res = await fetch(`${url}/json/state`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) });
-      if (!res.ok) throw new Error(`WLED HTTP ${res.status}`);
-      toast(okText);
+      await fetch(`${url}/json/state`, {
+        method:"POST",
+        mode:"no-cors",
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        body:JSON.stringify(data)
+      });
+      toast(`${okText} · Browser-Direktmodus`);
     }
     function add(kind) {
       const n = state.cabinets.length + 1, large = kind === "large", maxLed = Math.max(...slots().map(s => s.led_stop), 0);
