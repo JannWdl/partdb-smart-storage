@@ -95,6 +95,7 @@ if ! token="$(
     -e PARTDB_SETUP_USER="$USERNAME" \
     -e DATABASE_MYSQL_USE_SSL_CA=0 \
     -e DATABASE_MYSQL_SSL_VERIFY_CERT=0 \
+    -e SAML_ENABLED=0 \
     partdb php < "$tmp_script"
 )"; then
   echo

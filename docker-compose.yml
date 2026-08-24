@@ -10,6 +10,9 @@ services:
       APP_SECRET: ${APP_SECRET:-change-me-with-scripts/generate-secret.sh}
       DEFAULT_URI: ${PARTDB_PUBLIC_URL:-http://partdb.local:8080}
       DATABASE_URL: sqlite:///%kernel.project_dir%/var/db/app.db
+      DATABASE_MYSQL_USE_SSL_CA: "0"
+      DATABASE_MYSQL_SSL_VERIFY_CERT: "0"
+      SAML_ENABLED: ${SAML_ENABLED:-0}
       TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./data/partdb/uploads:/var/www/html/uploads
