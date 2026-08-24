@@ -90,9 +90,10 @@
         </div>
         <div class="actions" style="margin-top:10px">
           <button id="sendWled" class="primary">An WLED senden</button>
+          <button id="allBlue">Alles blau testen</button>
           <button id="copyPayload">Payload kopieren</button>
         </div>
-        <p class="pill">Falls direktes Senden wegen Browser/CORS blockiert wird: Payload kopieren und später über die App senden.</p>
+        <p class="pill">Fach-Klicks und Alles blau nutzen die einfache WLED-HTTP-API. Die JSON-Vorschau ist zum Kopieren für die App gedacht.</p>
       </section>
       <section>
         <h2>JSON Payload</h2>
@@ -206,7 +207,7 @@
       const b = document.createElement("button");
       b.className = "zone"; b.style.borderColor = `rgb(${z.color.join(",")})`; b.style.background = `linear-gradient(135deg, rgba(${z.color.join(",")}, .26), rgba(36,42,50,.96))`;
       b.innerHTML = `<b>${z.label}</b><small>LED ${z.led_start}-${z.led_stop - 1}</small>`;
-      b.onclick = () => sendPayload(testPayload(z), `${z.label} getestet`);
+      b.onclick = () => sendHttpZone(z);
       return b;
     }
     function clearSegments() {
@@ -267,6 +268,35 @@
         }]
       };
     }
+    function httpApiUrl(params) {
+      const base = $("wledUrl").value.replace(/\/$/, "");
+      const query = Object.entries({ ...params, _: Date.now() })
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join("&");
+      return `${base}/win&${query}`;
+    }
+    async function sendHttpApi(params, okText) {
+      await fetch(httpApiUrl(params), { method:"GET", mode:"no-cors", cache:"no-store" });
+      toast(`${okText} · HTTP-Direktmodus`);
+    }
+    async function sendHttpZone(z) {
+      await sendHttpApi({
+        T:1,
+        A:220,
+        FX:0,
+        SS:0,
+        SV:2,
+        S:z.led_start,
+        S2:z.led_stop,
+        SB:255,
+        R:0,
+        G:140,
+        B:255
+      }, `${z.label}: LED ${z.led_start}-${z.led_stop - 1}`);
+    }
+    async function sendAllBlue() {
+      await sendHttpApi({ T:1, A:220, FX:0, R:0, G:0, B:255 }, "Alles blau gesendet");
+    }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");
       await fetch(`${url}/json/state`, {
@@ -288,6 +318,7 @@
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
     $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
     $("sendWled").onclick = () => sendPayload(payload()).catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
+    $("allBlue").onclick = () => sendAllBlue().catch(e => toast(`Senden fehlgeschlagen: ${e.message}`));
     $("copyPayload").onclick = async () => { await navigator.clipboard.writeText($("payload").value); toast("Payload kopiert"); };
     renderAll();
   </script>
