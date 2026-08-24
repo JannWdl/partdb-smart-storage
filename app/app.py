@@ -390,6 +390,21 @@ def normalize(text):
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+def normalize_scan_code(raw_code):
+    code = re.sub(r"[\s]+", "", str(raw_code or "").strip())
+    code = code.replace("：", ":").replace(";", ":").replace("Ö", ":").replace("ö", ":")
+    upper = code.upper()
+    for prefix in ("PART", "DRAWER"):
+        if upper.startswith(prefix):
+            rest = code[len(prefix):]
+            if rest.startswith(":"):
+                rest = rest[1:]
+            return f"{prefix}:{rest}"
+    if upper in ("ADD", "REMOVE", "WISHLIST", "CANCEL"):
+        return upper
+    return code
+
+
 def part_url(part_id):
     return f"{settings()['partdb_url']}/de/part/{entity_id(part_id)}"
 
@@ -909,7 +924,7 @@ def api_scan(data: dict = Body(...)):
     cfg = settings()
     if not cfg["barcode_enabled"]:
         return {"ok": False, **feedback("error", "Barcode-Modul ist deaktiviert.")}
-    code = str(data.get("code", "")).strip()
+    code = normalize_scan_code(data.get("code", ""))
     upper = code.upper()
     session = current_session()
     if not code:

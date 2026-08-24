@@ -16,6 +16,8 @@ let state = {
   cameraTimer: null,
   lastCameraCode: "",
   lastCameraAt: 0,
+  keyboardScanBuffer: "",
+  keyboardScanAt: 0,
   lastScanStatus: "",
 };
 
@@ -210,6 +212,7 @@ function renderBarcodePanel() {
   root.innerHTML = `
     <p class="meta">Barcode wird ausschließlich in den Einstellungen aktiviert oder deaktiviert.</p>
     <p class="meta">Codes: PART:&lt;id&gt;, DRAWER:&lt;fach-id&gt;, ADD, REMOVE, WISHLIST, CANCEL</p>
+    <p class="meta">USB-Scanner funktionieren wie eine Tastatur. Deutsches Layout wird automatisch korrigiert, zum Beispiel PARTÖ123 zu PART:123.</p>
     <div class="scan-context">
       <div><span>Teil</span><b>${session.part_name || session.partdb_part_id || "nicht gewählt"}</b></div>
       <div><span>Fach</span><b>${session.drawer_id || "nicht gewählt"}</b></div>
@@ -219,6 +222,7 @@ function renderBarcodePanel() {
       <input id="scanInput" placeholder="Scanner-Fokus: Barcode scannen oder eintippen" ${cfg.barcode_enabled ? "" : "disabled"}>
       <button id="scanBtn" ${cfg.barcode_enabled ? "" : "disabled"}>Senden</button>
     </div>
+    <p class="meta">Tipp: Barcode-Tab öffnen und scannen. Das Feld muss nicht zwingend fokussiert sein, solange der Scanner am Ende Enter sendet.</p>
     <div class="stock-buttons">
       <button data-scan-code="ADD" class="success" ${cfg.barcode_enabled ? "" : "disabled"}>+ Bestand</button>
       <button data-scan-code="REMOVE" class="danger" ${cfg.barcode_enabled ? "" : "disabled"}>- Bestand</button>
@@ -235,7 +239,10 @@ function renderBarcodePanel() {
   `;
   $("scanBtn").onclick = () => sendScan($("scanInput").value).catch((error) => showScanError(error.message));
   $("scanInput").onkeydown = (event) => {
-    if (event.key === "Enter") sendScan(event.currentTarget.value).catch((error) => showScanError(error.message));
+    if (event.key === "Enter") {
+      event.preventDefault();
+      sendScan(event.currentTarget.value).catch((error) => showScanError(error.message));
+    }
   };
   $("cameraBtn").onclick = () => startCameraScanner().catch((error) => showScanError(error.message));
   $("cameraStopBtn").onclick = stopCameraScanner;
@@ -342,8 +349,20 @@ function beep(kind) {
   }
 }
 
+function normalizeScanCode(rawCode) {
+  let code = String(rawCode || "").trim();
+  code = code.replace(/[\r\n\t ]+/g, "");
+  code = code.replace(/[：;]/g, ":");
+  code = code.replace(/[Öö]/g, ":");
+  code = code.replace(/^PART[:：;Öö]?/i, "PART:");
+  code = code.replace(/^DRAWER[:：;Öö]?/i, "DRAWER:");
+  const upper = code.toUpperCase();
+  if (["ADD", "REMOVE", "WISHLIST", "CANCEL"].includes(upper)) return upper;
+  return code;
+}
+
 async function sendScan(rawCode) {
-  const code = String(rawCode || "").trim();
+  const code = normalizeScanCode(rawCode);
   if (!code) return;
   $("scanInput").value = "";
   const result = await api("/api/scan", {
@@ -358,6 +377,37 @@ async function sendScan(rawCode) {
   state.stockEvents = await api("/api/stock/events?limit=20");
   renderBarcodePanel();
   renderStockEvents();
+}
+
+function shouldCaptureScannerKey(event) {
+  if (state.activePanel !== "barcodeSection") return false;
+  if (!state.settings?.barcode_enabled) return false;
+  if (event.ctrlKey || event.altKey || event.metaKey) return false;
+  const target = event.target;
+  if (target?.id === "scanInput") return false;
+  if (target?.tagName === "TEXTAREA" || target?.isContentEditable) return false;
+  if (target?.tagName === "INPUT" && target.type !== "button") return false;
+  return event.key === "Enter" || event.key.length === 1;
+}
+
+function handleScannerKeyboard(event) {
+  if (!shouldCaptureScannerKey(event)) return;
+  const now = Date.now();
+  if (now - state.keyboardScanAt > 250) state.keyboardScanBuffer = "";
+  state.keyboardScanAt = now;
+  if (event.key === "Enter") {
+    const code = state.keyboardScanBuffer;
+    state.keyboardScanBuffer = "";
+    if (code) {
+      event.preventDefault();
+      sendScan(code).catch((error) => showScanError(error.message));
+    }
+    return;
+  }
+  state.keyboardScanBuffer += event.key;
+  if (state.keyboardScanBuffer.length > 128) {
+    state.keyboardScanBuffer = state.keyboardScanBuffer.slice(-128);
+  }
 }
 
 async function startCameraScanner() {
@@ -769,6 +819,7 @@ $("partSearchBtn").onclick = () => searchParts().catch((error) => toast(error.me
 $("assignBtn").onclick = () => assignSelected().catch((error) => toast(error.message));
 $("findBtn").onclick = () => findAssignment().catch((error) => toast(error.message));
 $("offBtn").onclick = () => api("/api/wled/off", { method: "POST" }).then(() => toast("LEDs aus."));
+document.addEventListener("keydown", handleScannerKeyboard);
 async function saveDraftLayout() {
   updateDraftFromInputs();
   await api("/api/layout", { method: "PUT", body: JSON.stringify({ layout: state.draftLayout }) });

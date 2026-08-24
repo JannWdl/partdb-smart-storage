@@ -121,7 +121,7 @@ Später reicht die Suche oben links: Teilname eingeben, `Suchen & leuchten` klic
 
 ## Barcode
 
-Das Barcode-Modul ist optional. Unterstützt werden USB-Scanner als Tastatureingabe und Browser-Kamera-Scanner, sofern der Browser `BarcodeDetector` unterstützt.
+Das Barcode-Modul ist optional. Unterstützt werden USB-Scanner als Tastatureingabe, manuelle Eingabe und Browser-Kamera-Scanner, sofern der Browser `BarcodeDetector` unterstützt. USB-Scanner mit deutscher Tastaturbelegung werden automatisch korrigiert, zum Beispiel `PARTÖ123` zu `PART:123`.
 
 Standardcodes:
 

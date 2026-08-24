@@ -4,7 +4,9 @@ Das Barcode-Modul arbeitet optional. Wenn **Part-DB Bestand schreiben** aktiv is
 
 ## Scanner-Arten
 
-- USB-Scanner: funktioniert wie eine Tastatur. Fokus in das Scan-Feld setzen und scannen.
+- USB-Scanner: funktioniert wie eine Tastatur. Im Barcode-Tab kann direkt gescannt werden; das Scan-Feld muss nicht zwingend fokussiert sein, solange der Scanner am Ende Enter sendet.
+- Deutsche Tastaturbelegung: typische Scanner-Ausgaben wie `PARTÖ123` werden automatisch zu `PART:123` korrigiert.
+- Manuelle Eingabe: Codes können in das Scan-Feld getippt und mit Enter oder **Senden** verarbeitet werden.
 - Browser-Kamera: funktioniert, wenn der Browser `BarcodeDetector` unterstützt und Kamera-Zugriff erlaubt.
 
 ## Codes

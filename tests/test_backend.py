@@ -70,6 +70,12 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(backend.partdb_status_for_http(403), 403)
         self.assertEqual(backend.partdb_status_for_http(500), 502)
 
+    def test_scan_code_normalizes_german_keyboard_colon(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.normalize_scan_code("PARTÖ123"), "PART:123")
+        self.assertEqual(backend.normalize_scan_code("drawerömagazin-1"), "DRAWER:magazin-1")
+        self.assertEqual(backend.normalize_scan_code(" add\n"), "ADD")
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
