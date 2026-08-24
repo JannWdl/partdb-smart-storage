@@ -45,6 +45,14 @@ Danach:
 
 - Part-DB: `http://<pi-ip>:8080`
 - Smart Storage: `http://<pi-ip>:8090`
+- Part-DB Login: `admin` mit dem Passwort, das der Installer abfragt
+
+Wenn Part-DB schon installiert ist und nur das Admin-Passwort gesetzt werden soll:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/setup-partdb-admin.sh
+```
 
 ## Konfiguration
 
