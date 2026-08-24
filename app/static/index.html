@@ -25,7 +25,13 @@
     </section>
 
     <aside>
-      <section>
+      <section class="side-tabs">
+        <button class="side-tab active" data-panel="assignPanel">Zuordnung</button>
+        <button class="side-tab" data-panel="settingsSection">Einstellungen</button>
+        <button class="side-tab" data-panel="barcodeSection">Barcode</button>
+      </section>
+
+      <section id="assignPanel" class="side-panel active">
         <h2>Teil zuordnen</h2>
         <div class="form-grid">
           <input id="partSearch" placeholder="Part-DB durchsuchen">
@@ -37,37 +43,47 @@
         <button id="assignBtn">Speichern & testen</button>
       </section>
 
-      <section>
+      <section id="assignmentsPanel" class="side-panel active">
         <h2>Zuordnungen</h2>
         <div id="assignments"></div>
       </section>
 
-      <section>
+      <section id="settingsSection" class="side-panel">
         <h2>Einstellungen</h2>
         <div id="settingsPanel"></div>
       </section>
 
-      <section>
-        <h2>WLED-Zonen</h2>
-        <div id="wledZonesPanel"></div>
-      </section>
-
-      <section>
+      <section id="barcodeSection" class="side-panel">
         <h2>Barcode</h2>
         <div id="barcodePanel"></div>
       </section>
 
       <section>
         <h2>Setup-Assistent</h2>
+        <button id="openSetupBtn" class="primary">Setup öffnen</button>
+      </section>
+    </aside>
+  </main>
+
+  <div id="setupModal" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Setup-Assistent</h2>
+          <p class="meta">Magazine anordnen, LED-Bereiche setzen und Fächer testen.</p>
+        </div>
+        <button id="closeSetupBtn">Schließen</button>
+      </div>
+      <div class="modal-body">
         <div class="wizard-tabs">
           <button class="tab active" data-step="arrangement">Anordnung</button>
           <button class="tab" data-step="leds">LEDs</button>
           <button class="tab" data-step="review">Test</button>
         </div>
         <div id="setupGuide"></div>
-      </section>
-    </aside>
-  </main>
+      </div>
+    </div>
+  </div>
 
   <div id="toast"></div>
   <script src="/static/app.js"></script>

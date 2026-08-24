@@ -57,6 +57,32 @@ aside {
   align-content: start;
 }
 
+.side-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.side-tabs button {
+  min-height: 36px;
+  padding: 7px;
+  color: var(--muted);
+}
+
+.side-tabs button.active {
+  color: var(--accent);
+  border-color: #6f5a1e;
+  background: #2c271b;
+}
+
+.side-panel {
+  display: none;
+}
+
+.side-panel.active {
+  display: block;
+}
+
 button, input, select, textarea {
   font: inherit;
   border: 1px solid var(--line);
@@ -181,80 +207,6 @@ textarea {
   margin-bottom: 10px;
 }
 
-.segmented {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.segmented button {
-  min-height: 36px;
-  padding: 7px;
-  color: var(--muted);
-}
-
-.segmented button.active {
-  color: var(--accent);
-  border-color: #6f5a1e;
-  background: #2c271b;
-}
-
-.zone-summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #303842;
-  border-radius: 8px;
-  margin-bottom: 10px;
-}
-
-.zone-summary span {
-  color: var(--muted);
-}
-
-.zone-map {
-  display: grid;
-  gap: 12px;
-  max-height: 430px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.zone-cabinet {
-  border-top: 1px solid #303842;
-  padding-top: 10px;
-}
-
-.zone-grid {
-  display: grid;
-  gap: 7px;
-}
-
-.zone-card {
-  min-height: 54px;
-  padding: 8px;
-  text-align: left;
-  color: var(--text);
-  overflow: hidden;
-}
-
-.zone-card b {
-  display: block;
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.zone-card small {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: 3px;
-}
-
 .wizard-tabs button {
   min-height: 36px;
   padding: 7px;
@@ -265,6 +217,44 @@ textarea {
   color: var(--accent);
   border-color: #6f5a1e;
   background: #2c271b;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0,0,0,.68);
+}
+
+.modal.open {
+  display: flex;
+}
+
+.modal-card {
+  width: min(920px, 100%);
+  max-height: min(860px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 80px rgba(0,0,0,.48);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-body {
+  padding: 14px;
 }
 
 .setup-help {
