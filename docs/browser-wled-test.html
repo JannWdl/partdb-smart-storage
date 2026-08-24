@@ -101,6 +101,7 @@
         <div class="actions" style="margin-top:10px">
           <button id="addGrid">Raster hinzufügen</button>
           <button id="addLarge">Großes Fach</button>
+          <button id="deleteCabinet" class="danger">Magazin löschen</button>
         </div>
       </section>
       <section>
@@ -543,6 +544,20 @@
       renderAll();
     }
 
+    function deleteSelectedCabinet() {
+      if (state.cabinets.length <= 1) {
+        toast("Mindestens ein Magazin bleibt erhalten.");
+        return;
+      }
+      const index = state.cabinets.findIndex(cabinet => cabinet.id === state.selected);
+      if (index < 0) return;
+      const removed = state.cabinets[index].name;
+      state.cabinets.splice(index, 1);
+      state.selected = state.cabinets[Math.max(0, index - 1)].id;
+      toast(`${removed} gelöscht`);
+      renderAll();
+    }
+
     function renderAll() {
       renderBoard();
       fillInspector();
@@ -559,6 +574,7 @@
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
     $("addGrid").onclick = () => addCabinet("grid");
     $("addLarge").onclick = () => addCabinet("large");
+    $("deleteCabinet").onclick = deleteSelectedCabinet;
     $("connect").onclick = () => connectWled().catch(error => toast(`Fehler: ${error.message}`));
     $("allOn").onclick = () => allOn().catch(error => toast(`Fehler: ${error.message}`));
     $("rangeTest").onclick = () => rangeTest().catch(error => toast(`Fehler: ${error.message}`));
@@ -574,7 +590,11 @@
       renderWizard();
     };
     $("wizardNext").onclick = () => {
-      state.wizardStep = Math.min(3, state.wizardStep + 1);
+      if (state.wizardStep >= 3) {
+        closeWizard();
+        return;
+      }
+      state.wizardStep += 1;
       renderWizard();
     };
     resetBrowserState(true);
