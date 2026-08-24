@@ -86,6 +86,7 @@
         <h2>WLED senden</h2>
         <div class="fields">
           <label>WLED URL <input id="wledUrl" value="http://192.168.178.220"></label>
+          <label>Gesamt-LEDs <input id="totalLeds" type="number" min="1" value="96"></label>
           <label>Helligkeit <input id="brightness" type="range" min="1" max="255" value="180"></label>
         </div>
         <div class="actions" style="margin-top:10px">
@@ -134,6 +135,9 @@
         }
       }
       return out;
+    }
+    function layoutLedCount() {
+      return Math.max(...slots().map(s => s.led_stop), 1);
     }
     function zones() {
       const s = slots();
@@ -201,6 +205,7 @@
           block.appendChild(grid); root.appendChild(block);
         }
       } else zones().forEach(z => root.appendChild(zoneButton(z)));
+      $("totalLeds").value = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
       $("payload").value = JSON.stringify(payload(), null, 2);
     }
     function zoneButton(z) {
@@ -295,7 +300,20 @@
       }, `${z.label}: LED ${z.led_start}-${z.led_stop - 1}`);
     }
     async function sendAllBlue() {
-      await sendHttpApi({ T:1, A:220, FX:0, R:0, G:0, B:255 }, "Alles blau gesendet");
+      const total = Math.max(Number($("totalLeds").value || 0), layoutLedCount());
+      await sendHttpApi({
+        T:1,
+        A:220,
+        FX:0,
+        SS:0,
+        SV:2,
+        S:0,
+        S2:total,
+        SB:255,
+        R:0,
+        G:0,
+        B:255
+      }, `Alles blau bis LED ${total - 1}`);
     }
     async function sendPayload(data, okText = "Payload gesendet") {
       const url = $("wledUrl").value.replace(/\/$/, "");
@@ -314,6 +332,7 @@
     }
     function renderAll() { renderBoard(); fillInspector(); renderZones(); }
     ["name","id","rows","columns","start","leds","width","height","path","serpentine"].forEach(id => $(id).oninput = readInspector);
+    $("totalLeds").oninput = renderZones;
     $("modeDrawers").onclick = () => { state.mode = "drawers"; renderZones(); };
     $("modeCabinets").onclick = () => { state.mode = "cabinets"; renderZones(); };
     $("addGrid").onclick = () => add("grid"); $("addLarge").onclick = () => add("large");
