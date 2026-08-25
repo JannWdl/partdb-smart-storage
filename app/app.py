@@ -376,9 +376,10 @@ def lot_amount(lot):
 
 
 def write_partdb_stock(part_id, action, quantity=1):
-    strategy = partdb_stock_strategy()
-    if not strategy["ok"]:
-        raise RuntimeError(strategy["message"])
+    cfg = settings()
+    if not cfg["partdb_api_token"]:
+        raise RuntimeError("Part-DB API-Token fehlt.")
+    strategy = "part_lot_patch_direct"
     lot = first_part_lot(part_id)
     old_amount = lot_amount(lot)
     delta = float(quantity or 1) * (1 if action == "ADD" else -1)
@@ -388,7 +389,7 @@ def write_partdb_stock(part_id, action, quantity=1):
     lot_path = lot.get("@id") or f"/part_lots/{entity_id(lot.get('id'))}"
     result = partdb_patch(lot_path, {"amount": new_amount})
     return {
-        "strategy": strategy["strategy"],
+        "strategy": strategy,
         "lot": lot_path,
         "old_amount": old_amount,
         "new_amount": new_amount,

@@ -90,6 +90,21 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["strategy"], "part_lot_patch_unverified")
 
+    def test_write_partdb_stock_does_not_require_openapi(self):
+        backend = self.load_app_module()
+        backend.save_settings({"partdb_api_token": "abc123"})
+        lot = {"@id": "/api/part_lots/7", "amount": 4, "part": "/api/parts/123"}
+        with (
+            patch.object(backend, "partdb_stock_strategy", side_effect=AssertionError("OpenAPI strategy should not be used")),
+            patch.object(backend, "first_part_lot", return_value=lot),
+            patch.object(backend, "partdb_patch", return_value={"ok": True}) as patch_lot,
+        ):
+            result = backend.write_partdb_stock("123", "ADD", 2)
+        self.assertEqual(result["strategy"], "part_lot_patch_direct")
+        self.assertEqual(result["old_amount"], 4)
+        self.assertEqual(result["new_amount"], 6)
+        patch_lot.assert_called_once_with("/api/part_lots/7", {"amount": 6.0})
+
     def test_scan_session_expires(self):
         backend = self.load_app_module()
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
@@ -141,6 +156,22 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(result["status"], "synced")
         events = backend.api_stock_events(1)
         self.assertEqual(events[0]["status"], "synced")
+
+    def test_scan_action_writes_stock_when_openapi_is_unavailable(self):
+        backend = self.load_app_module()
+        backend.save_settings({"partdb_api_token": "abc123", "partdb_stock_write_enabled": True})
+        backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
+        lot = {"@id": "/api/part_lots/7", "amount": 1, "part": "/api/parts/123"}
+        with (
+            patch.object(backend, "call_wled", return_value={"ok": True}),
+            patch.object(backend, "partdb_stock_strategy", side_effect=RuntimeError("OpenAPI-Dokument nicht gefunden: 406")),
+            patch.object(backend, "first_part_lot", return_value=lot),
+            patch.object(backend, "partdb_patch", return_value={"ok": True}),
+        ):
+            result = backend.api_scan({"code": "ADD"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "synced")
+        self.assertEqual(result["partdb"]["strategy"], "part_lot_patch_direct")
 
     def test_scan_action_records_failed_partdb_write(self):
         backend = self.load_app_module()
