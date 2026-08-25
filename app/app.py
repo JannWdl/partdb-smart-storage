@@ -638,6 +638,66 @@ def wled_preview_payload_for_zones(zones, brightness=180):
     return wled_pixel_payload_for_zones(zones, brightness)
 
 
+def wled_led_bounds():
+    slots = computed_slots(read_layout())
+    if not slots:
+        return 0, 1
+    return min(slot["led_start"] for slot in slots), max(slot["led_stop"] for slot in slots)
+
+
+WLED_SHOWS = {
+    "matrix": {"label": "Matrix", "fx": 27, "sx": 190, "ix": 210, "pal": 0, "colors": [[0, 255, 72], [0, 45, 14], [0, 0, 0]]},
+    "rainbow": {"label": "Rainbow", "fx": 9, "sx": 150, "ix": 180, "pal": 11, "colors": [[255, 0, 80], [0, 255, 170], [255, 220, 0]]},
+    "scanner": {"label": "Scanner", "fx": 12, "sx": 210, "ix": 180, "pal": 0, "colors": [[255, 0, 40], [0, 0, 0], [0, 0, 0]]},
+    "sparkle": {"label": "Sparkle", "fx": 20, "sx": 170, "ix": 210, "pal": 7, "colors": [[255, 245, 170], [80, 200, 255], [255, 0, 160]]},
+}
+
+
+def wled_show_payload(show="matrix", brightness=180):
+    start, stop = wled_led_bounds()
+    config = WLED_SHOWS.get(show)
+    if not config:
+        raise ValueError("Unbekannter WLED-Effekt.")
+    return {
+        "on": True,
+        "bri": max(1, min(255, int(brightness))),
+        "transition": 0,
+        "mainseg": 0,
+        "seg": wled_clear_segments() + [{
+            "id": 0,
+            "start": start,
+            "stop": stop,
+            "on": True,
+            "bri": max(1, min(255, int(brightness))),
+            "col": config["colors"],
+            "fx": config["fx"],
+            "sx": config["sx"],
+            "ix": config["ix"],
+            "pal": config["pal"],
+        }],
+    }
+
+
+def run_wled_slot_cycle(brightness=220, step_ms=120, repeats=1):
+    zones = wled_zones("drawers")
+    if not zones:
+        raise RuntimeError("Keine Fächer im Layout gefunden.")
+    step_seconds = max(40, min(1200, int(step_ms))) / 1000
+    repeat_count = max(1, min(5, int(repeats)))
+    sent = 0
+    for _ in range(repeat_count):
+        for index, zone in enumerate(zones):
+            payload = wled_state_for_slot(zone, "locate")
+            payload["bri"] = max(1, min(255, int(brightness)))
+            segment = payload["seg"][-1]
+            segment["bri"] = max(1, min(255, int(brightness)))
+            segment["col"] = [ZONE_PALETTE[index % len(ZONE_PALETTE)], [0, 0, 0], [0, 0, 0]]
+            call_wled(payload)
+            sent += 1
+            time.sleep(step_seconds)
+    return {"ok": True, "mode": "cycle", "steps": sent, "slots": len(zones), "repeats": repeat_count}
+
+
 def call_wled(payload):
     response = requests.post(f"{settings()['wled_url']}/json/state", json=payload, timeout=2)
     response.raise_for_status()
@@ -929,6 +989,30 @@ def api_wled_apply_zones(data: dict = Body(default={})):
     zones = wled_zones(mode)
     payload = wled_preview_payload_for_zones(zones, brightness)
     return {"ok": True, "mode": mode, "zones": zones, "wled": call_wled(payload)}
+
+
+@app.get("/api/wled/effects")
+def api_wled_effects():
+    return {"effects": [{"id": key, "label": value["label"]} for key, value in WLED_SHOWS.items()]}
+
+
+@app.post("/api/wled/effects/{effect_id}")
+def api_wled_effect(effect_id: str, data: dict = Body(default={})):
+    brightness = int(data.get("brightness", 180))
+    try:
+        payload = wled_show_payload(effect_id, brightness)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True, "effect": effect_id, "wled": call_wled(payload)}
+
+
+@app.post("/api/wled/cycle")
+def api_wled_cycle(data: dict = Body(default={})):
+    return run_wled_slot_cycle(
+        brightness=int(data.get("brightness", 220)),
+        step_ms=int(data.get("step_ms", 120)),
+        repeats=int(data.get("repeats", 1)),
+    )
 
 
 @app.post("/api/wled/off")

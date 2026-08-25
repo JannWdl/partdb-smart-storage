@@ -121,6 +121,27 @@ POST /api/wled/apply-zones
 
 `drawers` erzeugt eine WLED-Zone pro Fach. `cabinets` erzeugt eine WLED-Zone pro Magazinblock.
 
+## WLED-Effekte
+
+```http
+GET /api/wled/effects
+POST /api/wled/effects/matrix
+POST /api/wled/effects/rainbow
+POST /api/wled/effects/scanner
+POST /api/wled/effects/sparkle
+POST /api/wled/cycle
+```
+
+```json
+{
+  "brightness": 190,
+  "step_ms": 120,
+  "repeats": 1
+}
+```
+
+Die Effekt-Endpunkte bespielen automatisch die komplette LED-Spanne des aktuellen Layouts. `/api/wled/cycle` lässt alle Fächer nacheinander aufleuchten.
+
 ## Teil suchen und Fach leuchten lassen
 
 ```http

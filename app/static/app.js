@@ -76,6 +76,7 @@ async function loadAll() {
   renderAssignments();
   renderSettingsPanel();
   renderBarcodePanel();
+  renderEffectsPanel();
   renderPrintPanel();
   renderSetupGuide();
   renderSideTabs();
@@ -285,6 +286,63 @@ function renderPrintPanel() {
   root.querySelectorAll("[data-print-mode]").forEach((button) => {
     button.onclick = () => window.open(printUrl(button.dataset.printMode), "_blank", "noopener");
   });
+}
+
+function renderEffectsPanel() {
+  const root = $("effectsPanel");
+  const totalLeds = state.slots.length ? Math.max(...state.slots.map((slot) => slot.led_stop)) : 0;
+  root.innerHTML = `
+    <div class="effect-board">
+      <div>
+        <span>Layout</span>
+        <b>${state.slots.length} Fächer · ${totalLeds} LEDs</b>
+      </div>
+      <label>Helligkeit <input id="effectBrightness" type="range" min="20" max="255" value="190"></label>
+    </div>
+    <div class="effect-grid">
+      <button data-effect="matrix" class="effect matrix">Matrix</button>
+      <button data-effect="rainbow" class="effect rainbow">Rainbow</button>
+      <button data-effect="scanner" class="effect scanner">Scanner</button>
+      <button data-effect="sparkle" class="effect sparkle">Sparkle</button>
+    </div>
+    <div class="cycle-card">
+      <div class="fields">
+        <label>Tempo ms <input id="cycleStepMs" type="number" min="40" max="1200" value="120"></label>
+        <label>Runden <input id="cycleRepeats" type="number" min="1" max="5" value="1"></label>
+      </div>
+      <button id="cycleSlotsBtn" class="primary">Fächer durchcyclen</button>
+    </div>
+  `;
+  root.querySelectorAll("[data-effect]").forEach((button) => {
+    button.onclick = () => playEffect(button.dataset.effect).catch((error) => toast(error.message));
+  });
+  $("cycleSlotsBtn").onclick = () => cycleSlots().catch((error) => toast(error.message));
+}
+
+function effectBrightness() {
+  return Number($("effectBrightness")?.value || 190);
+}
+
+async function playEffect(effectId) {
+  await api(`/api/wled/effects/${encodeURIComponent(effectId)}`, {
+    method: "POST",
+    body: JSON.stringify({ brightness: effectBrightness() }),
+  });
+  beep("locate");
+  toast(`${effectId} läuft.`);
+}
+
+async function cycleSlots() {
+  const result = await api("/api/wled/cycle", {
+    method: "POST",
+    body: JSON.stringify({
+      brightness: effectBrightness(),
+      step_ms: Number($("cycleStepMs").value || 120),
+      repeats: Number($("cycleRepeats").value || 1),
+    }),
+  });
+  beep("success");
+  toast(`${result.steps} Fach-Schritte abgespielt.`);
 }
 
 function showScanError(message) {

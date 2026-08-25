@@ -468,6 +468,72 @@ button.danger {
   width: 100%;
 }
 
+.effect-board {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.effect-board div,
+.cycle-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  background: rgba(36, 42, 50, .58);
+}
+
+.effect-board span,
+.effect-board label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.effect-board input {
+  width: 100%;
+}
+
+.effect-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.effect {
+  min-height: 64px;
+  border-color: rgba(121, 199, 255, .42);
+}
+
+.effect.matrix {
+  color: #8dffb0;
+  background: linear-gradient(135deg, rgba(8, 76, 35, .88), rgba(7, 18, 12, .9));
+}
+
+.effect.rainbow {
+  color: #fff2a8;
+  background: linear-gradient(135deg, rgba(185, 36, 95, .82), rgba(43, 111, 224, .78), rgba(26, 149, 93, .82));
+}
+
+.effect.scanner {
+  color: #ffd0d0;
+  background: linear-gradient(135deg, rgba(110, 14, 32, .9), rgba(28, 19, 24, .9));
+}
+
+.effect.sparkle {
+  color: #f9f3ff;
+  background: linear-gradient(135deg, rgba(116, 78, 21, .82), rgba(48, 35, 101, .86));
+}
+
+.cycle-card {
+  margin-top: 10px;
+}
+
+.cycle-card button {
+  width: 100%;
+}
+
 #cameraPreview {
   display: block;
   width: 100%;

@@ -211,6 +211,29 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(len(active_segments), 1)
         self.assertIn("i", active_segments[0])
 
+    def test_wled_matrix_effect_uses_full_layout_bounds(self):
+        backend = self.load_app_module()
+        payload = backend.wled_show_payload("matrix", 200)
+        active_segments = [segment for segment in payload["seg"] if segment.get("id") == 0]
+        self.assertEqual(len(active_segments), 1)
+        self.assertEqual(active_segments[0]["start"], 0)
+        self.assertEqual(active_segments[0]["stop"], 96)
+        self.assertEqual(active_segments[0]["col"][0], [0, 255, 72])
+        self.assertEqual(payload["bri"], 200)
+
+    def test_wled_slot_cycle_runs_every_drawer(self):
+        backend = self.load_app_module()
+        with (
+            patch.object(backend, "call_wled", return_value={"ok": True}) as wled,
+            patch.object(backend.time, "sleep"),
+        ):
+            result = backend.run_wled_slot_cycle(step_ms=40, repeats=1)
+        self.assertEqual(result["steps"], 21)
+        self.assertEqual(wled.call_count, 21)
+        first_payload = wled.call_args_list[0].args[0]
+        self.assertEqual(first_payload["seg"][-1]["start"], 0)
+        self.assertEqual(first_payload["seg"][-1]["stop"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()
