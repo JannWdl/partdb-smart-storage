@@ -1,8 +1,10 @@
 import importlib.util
 import os
+import socket
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -192,21 +194,102 @@ class BackendTests(unittest.TestCase):
 
     def test_zvt_frames_use_registration_and_display_input_only(self):
         backend = self.load_app_module()
-        self.assertEqual(backend.zvt_registration_frame()[:2], b"\x06\x00")
+        self.assertEqual(backend.zvt_registration_frame(), bytes.fromhex("06 00 06 00 00 00 00 09 78"))
         display = backend.zvt_display_input_frame(["1 Entnehmen", "2 Einlagern"])
         self.assertEqual(display[:2], b"\x06\xe1")
-        backend.save_settings({"zvt_registration_command": "06 01"})
-        with self.assertRaises(ValueError):
-            backend.zvt_registration_frame()
+        for command in ("06 01", "06 93", "06 E1", "06 00 00 06 93 00", "invalid"):
+            backend.save_settings({"zvt_registration_command": command})
+            with self.assertRaises(ValueError):
+                backend.zvt_registration_frame()
         backend.save_settings({"zvt_display_input_command": "06 22"})
         with self.assertRaises(ValueError):
             backend.zvt_display_input_frame(["Payment darf nicht raus"])
 
-    def test_zvt_key_parser_prefers_number_keys(self):
+    def test_zvt_key_parser_only_accepts_complete_key_responses(self):
         backend = self.load_app_module()
-        self.assertEqual(backend.zvt_parse_key(b"1"), "1")
-        self.assertEqual(backend.zvt_parse_key(b"F1"), "1")
-        self.assertEqual(backend.zvt_parse_key(b"OK"), "OK")
+        self.assertEqual(backend.zvt_parse_key(bytes.fromhex("80 00 01 31")), "1")
+        self.assertEqual(backend.zvt_parse_key(bytes.fromhex("80 00 01 0D")), "OK")
+        self.assertEqual(backend.zvt_parse_key(bytes.fromhex("80 00 01 1B")), "CANCEL")
+        self.assertEqual(backend.zvt_parse_key(bytes.fromhex("80 00 01 6C")), "TIMEOUT")
+        for response in (b"1", b"OK", b"\x80\x00\x01", bytes.fromhex("06 0F 0A 19 03 29 69 22 56 31 49 09 78")):
+            self.assertIsNone(backend.zvt_parse_key(response))
+
+    def test_zvt_display_matches_working_ccv_capture(self):
+        self.load_app_module()
+        from zvt import display_frame
+        expected = bytes.fromhex("06 E1 20 F0 00 F1 F1 F0 4C 41 47 45 52 20 54 45 53 54 F2 F1 F4 54 61 73 74 65 20 64 72 75 65 63 6B 65 6E")
+        self.assertEqual(display_frame(["LAGER TEST", "Taste druecken"], duration=0), expected)
+
+    def test_zvt_stream_reassembles_fragmented_and_coalesced_responses(self):
+        self.load_app_module()
+        from zvt import Connection, ACK, frame, pop_frame, validate_outbound
+        from unittest.mock import Mock
+        sock = Mock()
+        completion = bytes.fromhex("06 0F 0A 19 03 29 69 22 56 31 49 09 78")
+        sock.recv.side_effect = [b"\x80", b"\x00\x00" + completion[:4], completion[4:] + bytes.fromhex("80 00 01 0D")]
+        connection = Connection(sock, threading.Event())
+        registration = bytes.fromhex("06 00 06 00 00 00 00 09 78")
+        connection.register(registration)
+        self.assertEqual([call.args[0] for call in sock.sendall.call_args_list], [registration, ACK])
+        self.assertEqual(connection.receive(1), bytes.fromhex("80 00 01 0D"))
+        long_frame = frame(b"\x06\xe1", b"a" * 300)
+        self.assertEqual(long_frame[2:5], bytes.fromhex("FF 2C 01"))
+        buffer = bytearray(long_frame + ACK)
+        self.assertEqual(pop_frame(buffer), long_frame)
+        self.assertEqual(pop_frame(buffer), ACK)
+        for invalid in (b"\x06\x00", bytes.fromhex("06 93 00"), registration + bytes.fromhex("06 93 00")):
+            with self.assertRaises(ValueError):
+                validate_outbound(invalid)
+
+    def test_zvt_rejected_registration_never_sends_display(self):
+        backend = self.load_app_module()
+        from unittest.mock import Mock
+        sock = Mock()
+        sock.recv.return_value = bytes.fromhex("84 9A 00")
+        controller = backend.ZvtStorageController()
+        with self.assertRaisesRegex(RuntimeError, "84 9A"):
+            controller.run_connection(sock, backend.settings())
+        self.assertFalse(controller.registered)
+        self.assertEqual(sock.sendall.call_count, 1)
+
+    def test_zvt_start_stop_restart_while_waiting_for_input(self):
+        backend = self.load_app_module()
+        controller = backend.ZvtStorageController()
+        self.addCleanup(controller.stop)
+        for _ in range(3):
+            client, terminal = socket.socketpair()
+            terminal.settimeout(3)
+            with terminal, patch.object(backend.socket, "create_connection", return_value=client):
+                controller.start()
+
+                def receive(size):
+                    result = b""
+                    while len(result) < size:
+                        chunk = terminal.recv(size - len(result))
+                        if not chunk:
+                            raise AssertionError("Unexpected EOF")
+                        result += chunk
+                    return result
+
+                self.assertEqual(receive(9), bytes.fromhex("06 00 06 00 00 00 00 09 78"))
+                self.assertEqual(controller.status, "registering")
+                terminal.sendall(bytes.fromhex("80 00 00 06 0F 00"))
+                self.assertEqual(receive(3), bytes.fromhex("80 00 00"))
+                header = receive(3)
+                self.assertEqual(header[:2], bytes.fromhex("06 E1"))
+                self.assertIn(b"F1 Raus", receive(header[2]))
+                self.assertTrue(controller.registered)
+                self.assertFalse(controller.display_confirmed)
+                # A timeout is a positive display response, not a stock action.
+                terminal.sendall(bytes.fromhex("80 00 01 6C"))
+                header = receive(3)
+                receive(header[2])
+                self.assertEqual(controller.status, "ready")
+                controller.stop()
+                self.assertFalse(controller.thread.is_alive())
+                self.assertIsNone(controller.sock)
+                self.assertIsNone(controller.last_error)
+                self.assertEqual(controller.status, "stopped")
 
     def test_zvt_number_keys_book_quantity_through_partdb_flow(self):
         backend = self.load_app_module()

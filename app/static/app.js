@@ -170,6 +170,7 @@ function renderSettingsPanel() {
       <label class="checkline"><input id="settingCameraEnabled" type="checkbox" ${cfg.barcode_camera_enabled ? "checked" : ""}> Kamera-Scanner aktiv</label>
       <label class="checkline"><input id="settingStockWriteEnabled" type="checkbox" ${cfg.partdb_stock_write_enabled ? "checked" : ""}> Part-DB Bestand schreiben</label>
       <label class="checkline"><input id="settingZvtEnabled" type="checkbox" ${cfg.zvt_enabled ? "checked" : ""}> CCV ZVT aktiv</label>
+      <p id="zvtStatus" class="meta" role="status">CCV: Status wird geladen.</p>
     </div>
     <div class="wizard-actions">
       <button id="saveSettingsBtn" class="primary">Speichern</button>
@@ -184,6 +185,7 @@ function renderSettingsPanel() {
   $("testPartdbStockBtn").onclick = () => testPartdbStock().catch((error) => toast(error.message));
   $("zvtStartBtn").onclick = () => controlZvt("start").catch((error) => toast(error.message));
   $("zvtStopBtn").onclick = () => controlZvt("stop").catch((error) => toast(error.message));
+  refreshZvtStatus();
 }
 
 function renderSideTabs() {
@@ -407,8 +409,38 @@ async function testPartdbStock() {
 
 async function controlZvt(action) {
   const result = await api(`/api/zvt/${action}`, { method: "POST" });
-  toast(`ZVT ${result.status}${result.last_error ? ": " + result.last_error : ""}`);
+  renderZvtStatus(result);
+  toast(zvtStatusText(result));
 }
+
+function zvtStatusText(result) {
+  const labels = {
+    stopped: "Gestoppt", stopping: "Wird gestoppt", disabled: "Deaktiviert",
+    starting: "Verbindung wird aufgebaut", registering: "Terminal wird registriert",
+    waiting_for_input: "Registriert, Anzeige gesendet; Antwort ausstehend",
+    ready: "Terminal hat die Displayabfrage beantwortet", error: "Verbindungsfehler",
+  };
+  return `CCV: ${labels[result.status] || result.status}${result.last_error ? ": " + result.last_error : ""}`;
+}
+
+function renderZvtStatus(result) {
+  if ($("zvtStatus")) $("zvtStatus").textContent = zvtStatusText(result);
+}
+
+let zvtStatusLoading = false;
+async function refreshZvtStatus() {
+  if (zvtStatusLoading || document.hidden || !$("zvtStatus")) return;
+  zvtStatusLoading = true;
+  try {
+    renderZvtStatus(await api("/api/zvt/status"));
+  } catch (error) {
+    if ($("zvtStatus")) $("zvtStatus").textContent = `CCV: ${error.message}`;
+  } finally {
+    zvtStatusLoading = false;
+  }
+}
+
+setInterval(refreshZvtStatus, 2000);
 
 async function testWled() {
   await api("/api/wled/test", {

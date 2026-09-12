@@ -259,6 +259,24 @@ sudo ./scripts/uninstall.sh
 
 Das Uninstall-Skript stoppt und entfernt den systemd-Dienst, löscht aber die Daten nicht automatisch.
 
+## CCV-Lagerterminal
+
+Unter Einstellungen den ZVT Host `192.168.178.44` und Port `20007` eintragen,
+CCV ZVT aktivieren, speichern und starten. Nach geaenderten Verbindungsdaten
+einmal stoppen und wieder starten. Der Status unterscheidet Registrierung,
+gesendete Anzeige und eine Antwort auf die Displayabfrage.
+
+Die Integration verwendet den am CCV getesteten Ablauf `06 00` mit ACK und
+Completion, danach `06 E1`. F1 entnimmt, F2 lagert ein, F3 zeigt Info, F4 Licht.
+Im Mengendialog sind F1/F2 minus/plus, OK bucht, STOP bricht ab.
+Die Bestandsbuchung verwendet die bestehende Part-DB- und stock_events-Logik.
+Es werden nur Registrierung, Display/Input und Protokollbestaetigungen gesendet.
+
+Echte Zahlentasten sind mit `06 E1` nicht implementiert: `31` bis `34` sind
+Funktionstasten-Codes. Numerische Eingabe (`06 E2`) erfordert laut
+[ZVT-Spezifikation, Kapitel 2.30](https://www.terminalhersteller.de/downloads/PA00P015_13.08_en.pdf)
+eine Displaytext-MAC vom Hersteller und ist nicht freigeschaltet.
+
 ## Sicherheit
 
 - Die Dienste sind für das lokale Heimnetz gedacht, nicht direkt für das Internet.

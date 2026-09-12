@@ -16,6 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from core import DEFAULT_LAYOUT, computed_slots as build_slots, validate_layout
+from zvt import ACK as ZVT_ACK, ALLOWED_COMMANDS as ZVT_ALLOWED_COMMANDS, Connection as ZvtConnection
+from zvt import display_frame, parse_key as zvt_parse_key, validate_outbound
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/data"))
 CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
@@ -855,65 +857,32 @@ def handle_action(action, code):
     return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "synced", "partdb": partdb_result, **feedback("success", message, slot)}
 
 
-ZVT_ACK = b"\x06"
-ZVT_EOT = b"\x04"
-ZVT_ALLOWED_COMMANDS = {b"\x06\x00", b"\x06\xe1"}
-ZVT_NUMERIC_KEYS = {str(i).encode("ascii")[0]: str(i) for i in range(10)}
-ZVT_TEXT_KEYS = {
-    b"OK": "OK",
-    b"\r": "OK",
-    b"\n": "OK",
-    b"\x0d": "OK",
-    b"CANCEL": "CANCEL",
-    b"ABORT": "CANCEL",
-    b"\x1b": "CANCEL",
-    b"F1": "1",
-    b"F2": "2",
-    b"F3": "3",
-    b"F4": "4",
-}
-
-
 def hex_bytes(value, fallback):
     text = str(value or "").strip()
     if not text:
         text = fallback
     try:
         data = bytes(int(part, 16) for part in re.split(r"[\s,;:]+", text) if part)
-    except ValueError:
-        data = bytes.fromhex(fallback)
+    except ValueError as exc:
+        raise ValueError("Ungueltige ZVT-Kommando-Konfiguration.") from exc
     return data
 
 
 def zvt_registration_frame(cfg=None):
     cfg = cfg or settings()
     frame = hex_bytes(cfg.get("zvt_registration_command"), "06 00")
-    if frame[:2] not in ZVT_ALLOWED_COMMANDS:
+    if frame != b"\x06\x00":
         raise ValueError("Nur ZVT Registration 06 00 ist für die Lagersteuerung erlaubt.")
-    return frame
+    # Exact registration accepted by this CCV: password 000000, config 00, EUR.
+    return bytes.fromhex("06 00 06 00 00 00 00 09 78")
 
 
 def zvt_display_input_frame(lines, cfg=None):
     cfg = cfg or settings()
     command = hex_bytes(cfg.get("zvt_display_input_command"), "06 E1")
-    if command[:2] != b"\x06\xe1":
+    if command != b"\x06\xe1":
         raise ValueError("Nur ZVT Display/Input 06 E1 ist für die Lagersteuerung erlaubt.")
-    normalized_lines = [str(line)[:40] for line in lines][:8]
-    payload = "\n".join(normalized_lines).encode("cp437", errors="replace")
-    return command + b"\x00" + payload
-
-
-def zvt_parse_key(data):
-    raw = bytes(data or b"")
-    if not raw or raw == ZVT_ACK or raw == ZVT_EOT:
-        return None
-    upper = raw.strip(b"\x00").upper()
-    if upper in ZVT_TEXT_KEYS:
-        return ZVT_TEXT_KEYS[upper]
-    for byte in reversed(raw):
-        if byte in ZVT_NUMERIC_KEYS:
-            return ZVT_NUMERIC_KEYS[byte]
-    return None
+    return display_frame(lines)
 
 
 def zvt_menu_lines():
@@ -921,13 +890,10 @@ def zvt_menu_lines():
     part = session.get("part_name") or session.get("partdb_part_id") or "Teil scannen"
     drawer = session.get("drawer_id") or "kein Fach"
     return [
-        "Smart Storage",
         str(part),
         f"Fach: {drawer}",
-        "1 Entnehmen",
-        "2 Einlagern",
-        "3 Info",
-        "4 Licht",
+        "F1 Raus  F2 Rein",
+        "F3 Info  F4 Licht",
     ]
 
 
@@ -936,12 +902,10 @@ def zvt_quantity_lines(action, quantity):
     session = current_session()
     part = session.get("part_name") or session.get("partdb_part_id") or "Teil fehlt"
     return [
-        label,
         str(part),
-        f"Menge: {quantity}",
-        "1 weniger",
-        "2 mehr",
-        "OK buchen",
+        f"{label}: {quantity}",
+        "F1 -1  F2 +1",
+        "OK buchen  STOP zurueck",
     ]
 
 
@@ -982,6 +946,7 @@ class ZvtStorageController:
         self.thread = None
         self.stop_event = threading.Event()
         self.lock = threading.Lock()
+        self.lifecycle_lock = threading.Lock()
         self.sock = None
         self.status = "stopped"
         self.last_error = None
@@ -989,6 +954,11 @@ class ZvtStorageController:
         self.mode = "menu"
         self.pending_action = None
         self.quantity = 1
+        self.display_lines = None
+        self.last_response = None
+        self.last_key = None
+        self.registered = False
+        self.display_confirmed = False
 
     def snapshot(self):
         return {
@@ -1001,73 +971,112 @@ class ZvtStorageController:
             "quantity": self.quantity,
             "host": settings()["zvt_host"],
             "port": settings()["zvt_port"],
+            "registered": self.registered,
+            "display_confirmed": self.display_confirmed,
+            "last_response": self.last_response,
+            "last_key": self.last_key,
+            "input_mode": "function_keys",
         }
 
     def start(self):
-        with self.lock:
+        with self.lifecycle_lock:
             if self.thread and self.thread.is_alive():
                 return self.snapshot()
             self.stop_event.clear()
+            self.status = "starting"
+            self.last_error = None
             self.thread = threading.Thread(target=self.run, name="zvt-storage", daemon=True)
             self.thread.start()
-            self.status = "starting"
         return self.snapshot()
 
     def stop(self):
-        self.stop_event.set()
-        with self.lock:
-            if self.sock:
-                try:
-                    self.sock.close()
-                except OSError:
-                    pass
-                self.sock = None
-            self.status = "stopped"
+        with self.lifecycle_lock:
+            self.stop_event.set()
+            with self.lock:
+                self.status = "stopping"
+                if self.sock:
+                    try:
+                        # Wake recv; only the owning worker closes the socket.
+                        self.sock.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+            if self.thread:
+                self.thread.join(timeout=10)
+            if not self.thread or not self.thread.is_alive():
+                self.status = "stopped"
+                self.last_error = None
         return self.snapshot()
 
     def send_frame(self, frame):
-        if frame[:2] not in ZVT_ALLOWED_COMMANDS:
-            raise ValueError("Unerlaubtes ZVT-Kommando blockiert.")
+        validate_outbound(frame)
         with self.lock:
-            if not self.sock:
-                return
+            if not self.sock or self.stop_event.is_set():
+                raise ConnectionError("ZVT ist nicht verbunden.")
             self.sock.sendall(frame)
 
     def show(self, lines):
-        self.send_frame(zvt_display_input_frame(lines))
+        with self.lock:
+            self.display_lines = list(lines)
+
+    def observe_frame(self, direction, frame):
+        if direction == "rx":
+            self.last_response = frame.hex(" ").upper()[:256]
+
+    def run_connection(self, sock, cfg):
+        connection = ZvtConnection(sock, self.stop_event, self.observe_frame)
+        self.status = "registering"
+        connection.register(zvt_registration_frame(cfg))
+        self.registered = True
+        self.status = "waiting_for_input"
+        self.mode = "menu"
+        self.pending_action = None
+        self.quantity = 1
+        self.show(zvt_menu_lines())
+        while not self.stop_event.is_set():
+            with self.lock:
+                lines = self.display_lines
+            connection.send(zvt_display_input_frame(lines, cfg))
+            deadline = time.monotonic() + 15
+            while not self.stop_event.is_set():
+                response = connection.receive(max(0, deadline - time.monotonic()))
+                key = zvt_parse_key(response)
+                if key is None:
+                    if response == ZVT_ACK:
+                        continue
+                    raise RuntimeError(f"Unerwartete ZVT-Antwort: {response.hex(' ').upper()}")
+                self.display_confirmed = True
+                self.status = "ready"
+                self.last_key = key
+                if key == "TIMEOUT":
+                    if self.mode == "menu":
+                        self.show(zvt_menu_lines())
+                else:
+                    self.apply_key(key)
+                break
 
     def run(self):
         while not self.stop_event.is_set():
             cfg = settings()
             if not cfg["zvt_enabled"]:
                 self.status = "disabled"
-                time.sleep(2)
+                self.stop_event.wait(2)
                 continue
             try:
                 with socket.create_connection((cfg["zvt_host"], int(cfg["zvt_port"])), timeout=5) as sock:
-                    sock.settimeout(1)
                     with self.lock:
                         self.sock = sock
-                        self.status = "connected"
                         self.last_error = None
-                    self.send_frame(zvt_registration_frame(cfg))
-                    self.show(zvt_menu_lines())
-                    while not self.stop_event.is_set():
-                        try:
-                            data = sock.recv(1024)
-                        except socket.timeout:
-                            continue
-                        if not data:
-                            break
-                        key = zvt_parse_key(data)
-                        if key:
-                            self.apply_key(key)
+                    self.run_connection(sock, cfg)
             except Exception as exc:
-                with self.lock:
-                    self.sock = None
+                if not self.stop_event.is_set():
                     self.status = "error"
                     self.last_error = str(exc)
-                time.sleep(3)
+            finally:
+                with self.lock:
+                    self.sock = None
+                    self.registered = False
+                    self.display_confirmed = False
+            self.stop_event.wait(3)
         with self.lock:
             self.sock = None
             if self.status != "disabled":
@@ -1075,6 +1084,8 @@ class ZvtStorageController:
 
     def apply_key(self, key):
         key = str(key).upper()
+        if key in ("F1", "F2", "F3", "F4"):
+            key = key[1:]
         if key == "CANCEL":
             self.mode = "menu"
             self.pending_action = None
@@ -1082,10 +1093,10 @@ class ZvtStorageController:
             self.show(zvt_menu_lines())
             return {"ok": True, "mode": self.mode}
         if self.mode == "quantity":
-            if key == "1":
+            if key in ("1", "-"):
                 self.quantity = max(1, self.quantity - 1)
                 self.show(zvt_quantity_lines(self.pending_action, self.quantity))
-            elif key == "2":
+            elif key in ("2", "+"):
                 self.quantity += 1
                 self.show(zvt_quantity_lines(self.pending_action, self.quantity))
             elif key == "OK":
