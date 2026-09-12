@@ -364,9 +364,10 @@ def partdb_stock_strategy():
     return {"ok": True, "strategy": "part_lot_patch", "message": "Part-DB Bestandsschreiben ist bereit."}
 
 
-def first_part_lot(part_id):
+def first_part_lot(part_id, *, part=None, timeout=12):
     candidates = []
-    part = partdb_get(f"/parts/{entity_id(part_id)}")
+    if part is None:
+        part = partdb_get(f"/parts/{entity_id(part_id)}", timeout=timeout)
     for key in ("part_lots", "partLots", "lots", "part_lot"):
         value = part.get(key) if isinstance(part, dict) else None
         if isinstance(value, list):
@@ -379,13 +380,13 @@ def first_part_lot(part_id):
         f"/part_lots?part.id={entity_id(part_id)}",
     ):
         try:
-            candidates.extend(collection_items(partdb_get(query)))
+            candidates.extend(collection_items(partdb_get(query, timeout=timeout)))
         except Exception:
             continue
     for candidate in candidates:
         lot_path = candidate.get("@id") if isinstance(candidate, dict) else candidate
         if lot_path:
-            lot = candidate if isinstance(candidate, dict) and "amount" in candidate else partdb_get(lot_path)
+            lot = candidate if isinstance(candidate, dict) and "amount" in candidate else partdb_get(lot_path, timeout=timeout)
             lot_part = lot.get("part") if isinstance(lot, dict) else ""
             if isinstance(lot_part, dict):
                 lot_part = lot_part.get("@id") or lot_part.get("id")
@@ -885,33 +886,50 @@ def zvt_display_input_frame(lines, cfg=None):
     return display_frame(lines)
 
 
-def zvt_menu_lines():
-    session = current_session()
-    part = session.get("part_name") or session.get("partdb_part_id") or "Teil scannen"
-    drawer = session.get("drawer_id") or "kein Fach"
+def zvt_text(value, width=22):
+    text = " ".join(str(value).split())
+    return text if len(text) <= width else text[:width - 3] + "..."
+
+
+def zvt_amount(value):
+    return "?" if value is None else f"{float(value):g}"
+
+
+def zvt_selection(session):
+    return (session.get("partdb_part_id"), session.get("drawer_id"))
+
+
+def zvt_menu_lines(context=None):
+    context = context or current_session()
+    if not context.get("partdb_part_id"):
+        return ["Smart Storage", "Teil scannen", "F1 Raus  F2 Rein", "F3 Info  F4 Licht"]
+    stock = zvt_amount(context.get("amount"))
+    drawer = context.get("drawer_label") or context.get("drawer_id") or "Fach fehlt"
     return [
-        str(part),
-        f"Fach: {drawer}",
+        zvt_text(context.get("part_name") or f"Teil {context['partdb_part_id']}"),
+        zvt_text(f"Best. {stock} / {drawer}"),
         "F1 Raus  F2 Rein",
         "F3 Info  F4 Licht",
     ]
 
 
-def zvt_quantity_lines(action, quantity):
-    label = "Entnehmen" if action == "REMOVE" else "Einlagern"
-    session = current_session()
-    part = session.get("part_name") or session.get("partdb_part_id") or "Teil fehlt"
+def zvt_quantity_lines(action, quantity, context=None):
+    context = context or current_session()
+    label = "Raus" if action == "REMOVE" else "Rein"
     return [
-        str(part),
-        f"{label}: {quantity}",
+        zvt_text(context.get("part_name") or context.get("partdb_part_id") or "Teil fehlt"),
+        zvt_text(f"{label}: {quantity} / Best. {zvt_amount(context.get('amount'))}"),
         "F1 -1  F2 +1",
         "OK buchen  STOP zurueck",
     ]
 
 
-def handle_stock_quantity(action, quantity, code="ZVT"):
+def handle_stock_quantity(action, quantity, code="ZVT", expected_session=None):
     cfg = settings()
     session = current_session()
+    if expected_session is not None and zvt_selection(session) != zvt_selection(expected_session):
+        return {"ok": False, "status": "failed", "reason": "selection_changed", "session": session,
+                "message": "Auswahl geaendert oder abgelaufen. Bitte neu scannen."}
     part_id = session.get("partdb_part_id")
     drawer_id = session.get("drawer_id")
     assignment = find_assignment_by_part(part_id) if part_id else None
@@ -959,6 +977,10 @@ class ZvtStorageController:
         self.last_key = None
         self.registered = False
         self.display_confirmed = False
+        self.context = {}
+        self.pending_context = None
+        self.context_loaded_at = 0
+        self.action_lock = threading.RLock()
 
     def snapshot(self):
         return {
@@ -976,6 +998,7 @@ class ZvtStorageController:
             "last_response": self.last_response,
             "last_key": self.last_key,
             "input_mode": "function_keys",
+            "display_lines": self.display_lines,
         }
 
     def start(self):
@@ -1016,7 +1039,59 @@ class ZvtStorageController:
 
     def show(self, lines):
         with self.lock:
-            self.display_lines = list(lines)
+            self.display_lines = [zvt_text(line) for line in lines[:4]]
+
+    def load_context(self, force=False):
+        session = current_session()
+        if not force and zvt_selection(session) == zvt_selection(self.context) and time.monotonic() - self.context_loaded_at < 15:
+            return self.context
+        context = dict(session)
+        slot = slot_by_id(session["drawer_id"]) if session.get("drawer_id") else None
+        context["drawer_label"] = slot["label"] if slot else "Fach fehlt"
+        context["amount"] = None
+        if session.get("partdb_part_id"):
+            try:
+                part = partdb_get(f"/parts/{entity_id(session['partdb_part_id'])}", timeout=3)
+                context["part_name"] = part.get("name") or session.get("part_name")
+                context["amount"] = lot_amount(first_part_lot(session["partdb_part_id"], part=part, timeout=3))
+            except Exception:
+                context["stock_error"] = True
+        self.context = context
+        self.context_loaded_at = time.monotonic()
+        return context
+
+    def show_menu(self):
+        with self.action_lock:
+            self.mode = "menu"
+            self.pending_action = None
+            self.pending_context = None
+            self.quantity = 1
+            self.show(zvt_menu_lines(self.load_context()))
+
+    def show_result(self, result, action, quantity, context):
+        self.mode = "result"
+        self.pending_action = None
+        self.pending_context = None
+        self.quantity = 1
+        self.context_loaded_at = 0
+        if not result.get("ok"):
+            reason = result.get("message", "")
+            if result.get("reason") == "selection_changed":
+                lines = ["NICHT GEBUCHT", "Auswahl abgelaufen", "oder geaendert"]
+            elif "Nicht genug Bestand" in reason:
+                lines = ["NICHT GEBUCHT", "Bestand reicht nicht", zvt_text(context.get("part_name") or "Teil")]
+            elif not context.get("partdb_part_id") or not context.get("drawer_id"):
+                lines = ["NICHT GEBUCHT", "Teil oder Fach fehlt", "Bitte neu scannen"]
+            else:
+                lines = ["BUCHUNG FEHLGESCHLAGEN", "Part-DB pruefen", "Details im Web"]
+        elif result.get("status") == "local":
+            lines = ["TEST: NICHT GEBUCHT", zvt_text(context.get("part_name") or "Teil"), "Bestand unveraendert"]
+        else:
+            stock = result.get("partdb", {})
+            change = f"Bestand: {zvt_amount(stock.get('old_amount'))} -> {zvt_amount(stock.get('new_amount'))}"
+            label = "entnommen" if action == "REMOVE" else "eingelagert"
+            lines = [zvt_text(context.get("part_name") or "Teil"), f"{quantity} {label}", change]
+        self.show([*lines, "OK/STOP zurueck"])
 
     def observe_frame(self, direction, frame):
         if direction == "rx":
@@ -1028,10 +1103,7 @@ class ZvtStorageController:
         connection.register(zvt_registration_frame(cfg))
         self.registered = True
         self.status = "waiting_for_input"
-        self.mode = "menu"
-        self.pending_action = None
-        self.quantity = 1
-        self.show(zvt_menu_lines())
+        self.show_menu()
         while not self.stop_event.is_set():
             with self.lock:
                 lines = self.display_lines
@@ -1049,7 +1121,7 @@ class ZvtStorageController:
                 self.last_key = key
                 if key == "TIMEOUT":
                     if self.mode == "menu":
-                        self.show(zvt_menu_lines())
+                        self.show_menu()
                 else:
                     self.apply_key(key)
                 break
@@ -1083,48 +1155,53 @@ class ZvtStorageController:
                 self.status = "stopped"
 
     def apply_key(self, key):
+        with self.action_lock:
+            return self._apply_key(key)
+
+    def _apply_key(self, key):
         key = str(key).upper()
         if key in ("F1", "F2", "F3", "F4"):
             key = key[1:]
         if key == "CANCEL":
-            self.mode = "menu"
-            self.pending_action = None
-            self.quantity = 1
-            self.show(zvt_menu_lines())
+            self.show_menu()
+            return {"ok": True, "mode": self.mode}
+        if self.mode in ("result", "info"):
+            if key == "OK":
+                self.show_menu()
             return {"ok": True, "mode": self.mode}
         if self.mode == "quantity":
             if key in ("1", "-"):
                 self.quantity = max(1, self.quantity - 1)
-                self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+                self.show(zvt_quantity_lines(self.pending_action, self.quantity, self.pending_context))
             elif key in ("2", "+"):
-                self.quantity += 1
-                self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+                self.quantity = min(9999, self.quantity + 1)
+                self.show(zvt_quantity_lines(self.pending_action, self.quantity, self.pending_context))
             elif key == "OK":
-                result = handle_stock_quantity(self.pending_action, self.quantity, "ZVT")
+                action, quantity, context = self.pending_action, self.quantity, self.pending_context
+                result = handle_stock_quantity(action, quantity, "ZVT", expected_session=context)
                 self.last_result = result
-                self.mode = "menu"
-                self.pending_action = None
-                self.quantity = 1
-                self.show([result.get("message", "Gebucht."), "", *zvt_menu_lines()[:5]])
+                self.show_result(result, action, quantity, context)
                 return result
             return {"ok": True, "mode": self.mode, "quantity": self.quantity}
-        if key == "1":
+        if key in ("1", "2"):
+            context = self.context or self.load_context()
+            if not context.get("partdb_part_id") or not context.get("drawer_id"):
+                self.mode = "info"
+                self.show(["Teil oder Fach fehlt", "Bitte zuerst scannen", "", "OK/STOP zurueck"])
+                return {"ok": False, "mode": self.mode}
             self.mode = "quantity"
-            self.pending_action = "REMOVE"
+            self.pending_action = "REMOVE" if key == "1" else "ADD"
+            self.pending_context = dict(context)
             self.quantity = 1
-            self.show(zvt_quantity_lines(self.pending_action, self.quantity))
-        elif key == "2":
-            self.mode = "quantity"
-            self.pending_action = "ADD"
-            self.quantity = 1
-            self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+            self.show(zvt_quantity_lines(self.pending_action, self.quantity, self.pending_context))
         elif key == "3":
-            session = current_session()
+            context = self.load_context(force=True)
+            self.mode = "info"
             self.show([
-                "Info",
-                session.get("part_name") or session.get("partdb_part_id") or "kein Teil",
-                f"Fach: {session.get('drawer_id') or '-'}",
-                "OK zurueck",
+                context.get("part_name") or "Kein Teil gewaehlt",
+                "Bestand nicht abrufbar" if context.get("stock_error") else f"Buchungsbestand: {zvt_amount(context.get('amount'))}",
+                f"{context.get('drawer_label')} / #{context.get('partdb_part_id') or '-'}",
+                "OK/STOP zurueck",
             ])
         elif key == "4":
             session = current_session()
@@ -1132,10 +1209,11 @@ class ZvtStorageController:
             slot = slot_by_id(drawer_id) if drawer_id else None
             result = feedback("locate", "Fach leuchtet.", slot) if slot else feedback("error", "Kein Fach gewaehlt.")
             self.last_result = result
-            self.show([result.get("message", "Licht"), "", *zvt_menu_lines()[:5]])
+            self.mode = "info"
+            self.show(["Fach leuchtet" if slot and not result.get("wled_error") else "Licht nicht verfuegbar", slot["label"] if slot else "Kein Fach gewaehlt", "", "OK/STOP zurueck"])
             return result
         elif key == "OK":
-            self.show(zvt_menu_lines())
+            self.show_menu()
         return {"ok": True, "mode": self.mode, "pending_action": self.pending_action, "quantity": self.quantity}
 
 

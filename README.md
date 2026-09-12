@@ -272,6 +272,15 @@ Im Mengendialog sind F1/F2 minus/plus, OK bucht, STOP bricht ab.
 Die Bestandsbuchung verwendet die bestehende Part-DB- und stock_events-Logik.
 Es werden nur Registrierung, Display/Input und Protokollbestaetigungen gesendet.
 
+Die Hauptansicht zeigt Artikelname, Bestand des von der bestehenden Buchungslogik
+verwendeten Lagerloses und Fachname. Das ist bei mehreren Lagerlosen nicht der
+Gesamtbestand des Artikels. F3 aktualisiert die Detailansicht direkt; im Hauptmenue
+werden die Daten spaetestens bei der naechsten Displayabfrage nach 15 Sekunden
+neu geladen. Nicht abrufbare Bestaende erscheinen als `?`, nicht als Null.
+Buchungsdialoge behalten den angezeigten Artikel; eine geaenderte oder abgelaufene
+Scanauswahl verhindert die Buchung. Erfolg zeigt Menge und alten/neuen Bestand,
+Testmodus und Fehler haben eigene Anzeigen. OK oder STOP schliesst das Ergebnis.
+
 Echte Zahlentasten sind mit `06 E1` nicht implementiert: `31` bis `34` sind
 Funktionstasten-Codes. Numerische Eingabe (`06 E2`) erfordert laut
 [ZVT-Spezifikation, Kapitel 2.30](https://www.terminalhersteller.de/downloads/PA00P015_13.08_en.pdf)

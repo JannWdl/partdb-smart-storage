@@ -296,7 +296,8 @@ class BackendTests(unittest.TestCase):
         backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
         controller = backend.ZvtStorageController()
         with (
-            patch.object(controller, "show"),
+            patch.object(backend, "partdb_get", return_value={"name": "Widerstand"}),
+            patch.object(backend, "first_part_lot", return_value={"amount": 5}),
             patch.object(backend, "call_wled", return_value={"ok": True}),
             patch.object(backend, "write_partdb_stock", return_value={"old_amount": 5, "new_amount": 7}) as write_stock,
         ):
@@ -309,6 +310,109 @@ class BackendTests(unittest.TestCase):
         events = backend.api_stock_events(1)
         self.assertEqual(events[0]["quantity"], 2)
         self.assertEqual(events[0]["event_type"], "add")
+        self.assertEqual(controller.display_lines, ["Widerstand", "2 eingelagert", "Bestand: 5 -> 7", "OK/STOP zurueck"])
+        self.assertEqual(controller.mode, "result")
+
+    def test_zvt_context_uses_partdb_name_stock_and_friendly_drawer_label(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Alter Name", "drawer_id": "main-1-1"})
+        controller = backend.ZvtStorageController()
+        with (
+            patch.object(backend, "partdb_get", return_value={"name": "Widerstand 10k"}) as get,
+            patch.object(backend, "first_part_lot", return_value={"amount": 12.5}) as lot,
+        ):
+            controller.show_menu()
+            controller.show_menu()
+            self.assertEqual(get.call_count, 1)
+            self.assertEqual(lot.call_count, 1)
+            self.assertEqual(controller.display_lines[:2], ["Widerstand 10k", "Best. 12.5 / Fach 1"])
+            controller.apply_key("F3")
+            self.assertEqual(get.call_count, 2)
+        self.assertEqual(controller.mode, "info")
+        self.assertEqual(controller.display_lines[1], "Buchungsbestand: 12.5")
+
+    def test_zvt_unavailable_stock_never_appears_as_zero(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Widerstand", "drawer_id": "main-1-1"})
+        controller = backend.ZvtStorageController()
+        with patch.object(backend, "partdb_get", side_effect=RuntimeError("offline")):
+            controller.show_menu()
+            self.assertIn("Best. ?", controller.display_lines[1])
+            controller.apply_key("F3")
+            self.assertEqual(controller.display_lines[1], "Bestand nicht abrufbar")
+
+    def test_zvt_selection_change_does_not_book_another_part(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Erstes Teil", "drawer_id": "main-1-1"})
+        controller = backend.ZvtStorageController()
+        with (
+            patch.object(backend, "partdb_get", return_value={"name": "Erstes Teil"}),
+            patch.object(backend, "first_part_lot", return_value={"amount": 12}),
+            patch.object(backend, "write_partdb_stock") as write,
+        ):
+            controller.show_menu()
+            controller.apply_key("F1")
+            backend.save_session({"partdb_part_id": "456", "part_name": "Zweites Teil", "drawer_id": "main-1-2"})
+            controller.apply_key("F2")
+            self.assertEqual(controller.display_lines[0], "Erstes Teil")
+            result = controller.apply_key("OK")
+        write.assert_not_called()
+        self.assertFalse(result["ok"])
+        self.assertEqual(controller.display_lines[0], "NICHT GEBUCHT")
+
+    def test_zvt_test_mode_and_failed_booking_have_distinct_result_screens(self):
+        for test_mode in (True, False):
+            backend = self.load_app_module()
+            backend.save_settings({"partdb_stock_write_enabled": not test_mode})
+            backend.save_session({"partdb_part_id": "123", "part_name": "Widerstand", "drawer_id": "main-1-1"})
+            controller = backend.ZvtStorageController()
+            with (
+                patch.object(backend, "partdb_get", return_value={"name": "Widerstand"}),
+                patch.object(backend, "first_part_lot", return_value={"amount": 12}),
+                patch.object(backend, "call_wled"),
+                patch.object(backend, "write_partdb_stock", side_effect=RuntimeError("offline")) as write,
+            ):
+                controller.apply_key("F1")
+                controller.apply_key("OK")
+                if test_mode:
+                    write.assert_not_called()
+                    self.assertEqual(controller.display_lines[0], "TEST: NICHT GEBUCHT")
+                else:
+                    self.assertEqual(controller.display_lines[0], "BUCHUNG FEHLGESCHLAGEN")
+                self.assertEqual(controller.mode, "result")
+                controller.apply_key("F1")
+                self.assertEqual(controller.mode, "result")
+
+    def test_zvt_result_needs_acknowledgement_and_refreshes_stock(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Widerstand", "drawer_id": "main-1-1"})
+        controller = backend.ZvtStorageController()
+        with (
+            patch.object(backend, "partdb_get", return_value={"name": "Widerstand"}),
+            patch.object(backend, "first_part_lot", side_effect=[{"amount": 12}, {"amount": 10}]),
+            patch.object(backend, "call_wled"),
+            patch.object(backend, "write_partdb_stock", return_value={"old_amount": 12, "new_amount": 10}) as write,
+        ):
+            controller.apply_key("F1")
+            controller.apply_key("F2")
+            controller.apply_key("OK")
+            self.assertEqual(controller.display_lines[1:3], ["2 entnommen", "Bestand: 12 -> 10"])
+            controller.apply_key("TIMEOUT")
+            self.assertEqual(controller.mode, "result")
+            controller.apply_key("OK")
+            self.assertEqual(controller.mode, "menu")
+            self.assertIn("Best. 10", controller.display_lines[1])
+            write.assert_called_once_with("123", "REMOVE", 2)
+
+    def test_zvt_lines_fit_four_line_display_and_zero_stock_is_visible(self):
+        backend = self.load_app_module()
+        context = {"partdb_part_id": "123", "part_name": "A" * 100, "drawer_label": "Fach " * 30, "amount": 0}
+        controller = backend.ZvtStorageController()
+        controller.show(backend.zvt_menu_lines(context))
+        self.assertIn("Best. 0", controller.display_lines[1])
+        self.assertTrue(controller.display_lines[0].endswith("..."))
+        self.assertEqual(len(controller.display_lines), 4)
+        self.assertTrue(all(len(line) <= 22 for line in controller.display_lines))
 
     def test_wled_zones_can_be_created_by_drawer_or_cabinet(self):
         backend = self.load_app_module()
