@@ -1,9 +1,11 @@
 import json
 import os
 import re
+import socket
 import sqlite3
+import threading
 import time
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 from urllib.parse import quote
 
@@ -30,6 +32,11 @@ ENV_DEFAULTS = {
     "barcode_camera_enabled": os.environ.get("BARCODE_CAMERA_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
     "partdb_stock_write_enabled": os.environ.get("PARTDB_STOCK_WRITE_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
     "scan_timeout_seconds": int(os.environ.get("SCAN_TIMEOUT_SECONDS", "30")),
+    "zvt_enabled": os.environ.get("ZVT_ENABLED", "true").lower() in ("1", "true", "yes", "on"),
+    "zvt_host": os.environ.get("ZVT_HOST", "192.168.178.44"),
+    "zvt_port": int(os.environ.get("ZVT_PORT", "20007")),
+    "zvt_registration_command": os.environ.get("ZVT_REGISTRATION_COMMAND", "06 00"),
+    "zvt_display_input_command": os.environ.get("ZVT_DISPLAY_INPUT_COMMAND", "06 E1"),
 }
 
 DEFAULT_COLORS = {
@@ -53,7 +60,17 @@ ZONE_PALETTE = [
     [0, 255, 210],
 ]
 
-app = FastAPI(title="Part-DB Smart Storage", version="0.2.0")
+@asynccontextmanager
+async def lifespan(_app):
+    if settings()["zvt_enabled"]:
+        zvt_controller.start()
+    try:
+        yield
+    finally:
+        zvt_controller.stop()
+
+
+app = FastAPI(title="Part-DB Smart Storage", version="0.2.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -185,6 +202,9 @@ def settings():
     result["barcode_enabled"] = bool(result["barcode_enabled"])
     result["barcode_camera_enabled"] = bool(result["barcode_camera_enabled"])
     result["partdb_stock_write_enabled"] = bool(result["partdb_stock_write_enabled"])
+    result["zvt_enabled"] = bool(result["zvt_enabled"])
+    result["zvt_host"] = str(result["zvt_host"] or "192.168.178.44").strip()
+    result["zvt_port"] = int(result["zvt_port"] or 20007)
     result["partdb_api_token_configured"] = bool(result.get("partdb_api_token"))
     return result
 
@@ -203,8 +223,12 @@ def save_settings(payload):
                 value = str(value).strip()
             if key == "scan_timeout_seconds":
                 value = max(5, min(300, int(value or 30)))
-            if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled"):
+            if key == "zvt_port":
+                value = max(1, min(65535, int(value or 20007)))
+            if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled", "zvt_enabled"):
                 value = bool(value)
+            if key in ("zvt_host", "zvt_registration_command", "zvt_display_input_command"):
+                value = str(value).strip()
             con.execute(
                 """
                 insert into settings (key, value, updated_at)
@@ -831,6 +855,282 @@ def handle_action(action, code):
     return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "synced", "partdb": partdb_result, **feedback("success", message, slot)}
 
 
+ZVT_ACK = b"\x06"
+ZVT_EOT = b"\x04"
+ZVT_ALLOWED_COMMANDS = {b"\x06\x00", b"\x06\xe1"}
+ZVT_NUMERIC_KEYS = {str(i).encode("ascii")[0]: str(i) for i in range(10)}
+ZVT_TEXT_KEYS = {
+    b"OK": "OK",
+    b"\r": "OK",
+    b"\n": "OK",
+    b"\x0d": "OK",
+    b"CANCEL": "CANCEL",
+    b"ABORT": "CANCEL",
+    b"\x1b": "CANCEL",
+    b"F1": "1",
+    b"F2": "2",
+    b"F3": "3",
+    b"F4": "4",
+}
+
+
+def hex_bytes(value, fallback):
+    text = str(value or "").strip()
+    if not text:
+        text = fallback
+    try:
+        data = bytes(int(part, 16) for part in re.split(r"[\s,;:]+", text) if part)
+    except ValueError:
+        data = bytes.fromhex(fallback)
+    return data
+
+
+def zvt_registration_frame(cfg=None):
+    cfg = cfg or settings()
+    frame = hex_bytes(cfg.get("zvt_registration_command"), "06 00")
+    if frame[:2] not in ZVT_ALLOWED_COMMANDS:
+        raise ValueError("Nur ZVT Registration 06 00 ist für die Lagersteuerung erlaubt.")
+    return frame
+
+
+def zvt_display_input_frame(lines, cfg=None):
+    cfg = cfg or settings()
+    command = hex_bytes(cfg.get("zvt_display_input_command"), "06 E1")
+    if command[:2] != b"\x06\xe1":
+        raise ValueError("Nur ZVT Display/Input 06 E1 ist für die Lagersteuerung erlaubt.")
+    normalized_lines = [str(line)[:40] for line in lines][:8]
+    payload = "\n".join(normalized_lines).encode("cp437", errors="replace")
+    return command + b"\x00" + payload
+
+
+def zvt_parse_key(data):
+    raw = bytes(data or b"")
+    if not raw or raw == ZVT_ACK or raw == ZVT_EOT:
+        return None
+    upper = raw.strip(b"\x00").upper()
+    if upper in ZVT_TEXT_KEYS:
+        return ZVT_TEXT_KEYS[upper]
+    for byte in reversed(raw):
+        if byte in ZVT_NUMERIC_KEYS:
+            return ZVT_NUMERIC_KEYS[byte]
+    return None
+
+
+def zvt_menu_lines():
+    session = current_session()
+    part = session.get("part_name") or session.get("partdb_part_id") or "Teil scannen"
+    drawer = session.get("drawer_id") or "kein Fach"
+    return [
+        "Smart Storage",
+        str(part),
+        f"Fach: {drawer}",
+        "1 Entnehmen",
+        "2 Einlagern",
+        "3 Info",
+        "4 Licht",
+    ]
+
+
+def zvt_quantity_lines(action, quantity):
+    label = "Entnehmen" if action == "REMOVE" else "Einlagern"
+    session = current_session()
+    part = session.get("part_name") or session.get("partdb_part_id") or "Teil fehlt"
+    return [
+        label,
+        str(part),
+        f"Menge: {quantity}",
+        "1 weniger",
+        "2 mehr",
+        "OK buchen",
+    ]
+
+
+def handle_stock_quantity(action, quantity, code="ZVT"):
+    cfg = settings()
+    session = current_session()
+    part_id = session.get("partdb_part_id")
+    drawer_id = session.get("drawer_id")
+    assignment = find_assignment_by_part(part_id) if part_id else None
+    if assignment and not drawer_id:
+        drawer_id = assignment["drawer_id"]
+    slot = slot_by_id(drawer_id) if drawer_id else None
+    quantity = max(1, int(quantity or 1))
+    if not part_id or not drawer_id:
+        record_stock_event("scan_error", part_id, session.get("part_name"), drawer_id, quantity, code, "Teil oder Fach fehlt.", status="failed")
+        return {"ok": False, "session": session, **feedback("error", "Erst Teil und Fach scannen.")}
+    event_type = "add" if action == "ADD" else "remove"
+    if not cfg["partdb_stock_write_enabled"]:
+        message = "Testmodus: Bestand nicht in Part-DB geändert."
+        record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, quantity, code, message, status="local")
+        return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "local", **feedback("success", message, slot)}
+    try:
+        partdb_result = write_partdb_stock(part_id, action, quantity)
+    except Exception as exc:
+        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, quantity, code, message, status="failed", sync_error=str(exc))
+        return {"ok": False, "event_type": event_type, "session": session, "status": "failed", **feedback("error", message, slot)}
+    message = {
+        "ADD": f"{quantity} Zugang in Part-DB gebucht.",
+        "REMOVE": f"{quantity} Abgang in Part-DB gebucht.",
+    }[action]
+    record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, quantity, code, message, status="synced", partdb_result=partdb_result)
+    return {"ok": True, "event_type": event_type, "session": save_session(session), "status": "synced", "partdb": partdb_result, **feedback("success", message, slot)}
+
+
+class ZvtStorageController:
+    def __init__(self):
+        self.thread = None
+        self.stop_event = threading.Event()
+        self.lock = threading.Lock()
+        self.sock = None
+        self.status = "stopped"
+        self.last_error = None
+        self.last_result = None
+        self.mode = "menu"
+        self.pending_action = None
+        self.quantity = 1
+
+    def snapshot(self):
+        return {
+            "enabled": settings()["zvt_enabled"],
+            "status": self.status,
+            "last_error": self.last_error,
+            "last_result": self.last_result,
+            "mode": self.mode,
+            "pending_action": self.pending_action,
+            "quantity": self.quantity,
+            "host": settings()["zvt_host"],
+            "port": settings()["zvt_port"],
+        }
+
+    def start(self):
+        with self.lock:
+            if self.thread and self.thread.is_alive():
+                return self.snapshot()
+            self.stop_event.clear()
+            self.thread = threading.Thread(target=self.run, name="zvt-storage", daemon=True)
+            self.thread.start()
+            self.status = "starting"
+        return self.snapshot()
+
+    def stop(self):
+        self.stop_event.set()
+        with self.lock:
+            if self.sock:
+                try:
+                    self.sock.close()
+                except OSError:
+                    pass
+                self.sock = None
+            self.status = "stopped"
+        return self.snapshot()
+
+    def send_frame(self, frame):
+        if frame[:2] not in ZVT_ALLOWED_COMMANDS:
+            raise ValueError("Unerlaubtes ZVT-Kommando blockiert.")
+        with self.lock:
+            if not self.sock:
+                return
+            self.sock.sendall(frame)
+
+    def show(self, lines):
+        self.send_frame(zvt_display_input_frame(lines))
+
+    def run(self):
+        while not self.stop_event.is_set():
+            cfg = settings()
+            if not cfg["zvt_enabled"]:
+                self.status = "disabled"
+                time.sleep(2)
+                continue
+            try:
+                with socket.create_connection((cfg["zvt_host"], int(cfg["zvt_port"])), timeout=5) as sock:
+                    sock.settimeout(1)
+                    with self.lock:
+                        self.sock = sock
+                        self.status = "connected"
+                        self.last_error = None
+                    self.send_frame(zvt_registration_frame(cfg))
+                    self.show(zvt_menu_lines())
+                    while not self.stop_event.is_set():
+                        try:
+                            data = sock.recv(1024)
+                        except socket.timeout:
+                            continue
+                        if not data:
+                            break
+                        key = zvt_parse_key(data)
+                        if key:
+                            self.apply_key(key)
+            except Exception as exc:
+                with self.lock:
+                    self.sock = None
+                    self.status = "error"
+                    self.last_error = str(exc)
+                time.sleep(3)
+        with self.lock:
+            self.sock = None
+            if self.status != "disabled":
+                self.status = "stopped"
+
+    def apply_key(self, key):
+        key = str(key).upper()
+        if key == "CANCEL":
+            self.mode = "menu"
+            self.pending_action = None
+            self.quantity = 1
+            self.show(zvt_menu_lines())
+            return {"ok": True, "mode": self.mode}
+        if self.mode == "quantity":
+            if key == "1":
+                self.quantity = max(1, self.quantity - 1)
+                self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+            elif key == "2":
+                self.quantity += 1
+                self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+            elif key == "OK":
+                result = handle_stock_quantity(self.pending_action, self.quantity, "ZVT")
+                self.last_result = result
+                self.mode = "menu"
+                self.pending_action = None
+                self.quantity = 1
+                self.show([result.get("message", "Gebucht."), "", *zvt_menu_lines()[:5]])
+                return result
+            return {"ok": True, "mode": self.mode, "quantity": self.quantity}
+        if key == "1":
+            self.mode = "quantity"
+            self.pending_action = "REMOVE"
+            self.quantity = 1
+            self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+        elif key == "2":
+            self.mode = "quantity"
+            self.pending_action = "ADD"
+            self.quantity = 1
+            self.show(zvt_quantity_lines(self.pending_action, self.quantity))
+        elif key == "3":
+            session = current_session()
+            self.show([
+                "Info",
+                session.get("part_name") or session.get("partdb_part_id") or "kein Teil",
+                f"Fach: {session.get('drawer_id') or '-'}",
+                "OK zurueck",
+            ])
+        elif key == "4":
+            session = current_session()
+            drawer_id = session.get("drawer_id")
+            slot = slot_by_id(drawer_id) if drawer_id else None
+            result = feedback("locate", "Fach leuchtet.", slot) if slot else feedback("error", "Kein Fach gewaehlt.")
+            self.last_result = result
+            self.show([result.get("message", "Licht"), "", *zvt_menu_lines()[:5]])
+            return result
+        elif key == "OK":
+            self.show(zvt_menu_lines())
+        return {"ok": True, "mode": self.mode, "pending_action": self.pending_action, "quantity": self.quantity}
+
+
+zvt_controller = ZvtStorageController()
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
@@ -1091,6 +1391,29 @@ def api_stock_events(limit: int = 100):
     with db() as con:
         rows = con.execute("select * from stock_events order by created_at desc, id desc limit ?", (max(1, min(500, int(limit))),)).fetchall()
     return [dict(row) for row in rows]
+
+
+@app.get("/api/zvt/status")
+def api_zvt_status():
+    return zvt_controller.snapshot()
+
+
+@app.post("/api/zvt/start")
+def api_zvt_start():
+    return zvt_controller.start()
+
+
+@app.post("/api/zvt/stop")
+def api_zvt_stop():
+    return zvt_controller.stop()
+
+
+@app.post("/api/zvt/input")
+def api_zvt_input(data: dict = Body(...)):
+    key = str(data.get("key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="Taste fehlt.")
+    return zvt_controller.apply_key(key)
 
 
 @app.exception_handler(requests.RequestException)

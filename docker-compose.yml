@@ -37,6 +37,9 @@ services:
       BARCODE_CAMERA_ENABLED: ${BARCODE_CAMERA_ENABLED:-true}
       PARTDB_STOCK_WRITE_ENABLED: ${PARTDB_STOCK_WRITE_ENABLED:-true}
       SCAN_TIMEOUT_SECONDS: ${SCAN_TIMEOUT_SECONDS:-30}
+      ZVT_ENABLED: ${ZVT_ENABLED:-true}
+      ZVT_HOST: ${ZVT_HOST:-192.168.178.44}
+      ZVT_PORT: ${ZVT_PORT:-20007}
       TZ: ${TZ:-Europe/Berlin}
     volumes:
       - ./data/smart-storage:/data

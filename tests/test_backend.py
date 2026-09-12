@@ -28,11 +28,17 @@ class BackendTests(unittest.TestCase):
             "barcode_enabled": False,
             "partdb_stock_write_enabled": False,
             "scan_timeout_seconds": 12,
+            "zvt_host": "192.168.178.44",
+            "zvt_port": 20007,
+            "zvt_enabled": True,
         })
         self.assertEqual(saved["wled_url"], "http://192.168.178.50")
         self.assertFalse(saved["barcode_enabled"])
         self.assertFalse(saved["partdb_stock_write_enabled"])
         self.assertEqual(saved["scan_timeout_seconds"], 12)
+        self.assertEqual(saved["zvt_host"], "192.168.178.44")
+        self.assertEqual(saved["zvt_port"], 20007)
+        self.assertTrue(saved["zvt_enabled"])
 
     def test_empty_token_does_not_overwrite_existing_token(self):
         backend = self.load_app_module()
@@ -183,6 +189,43 @@ class BackendTests(unittest.TestCase):
         events = backend.api_stock_events(1)
         self.assertEqual(events[0]["status"], "failed")
         self.assertIn("kein Token", events[0]["sync_error"])
+
+    def test_zvt_frames_use_registration_and_display_input_only(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.zvt_registration_frame()[:2], b"\x06\x00")
+        display = backend.zvt_display_input_frame(["1 Entnehmen", "2 Einlagern"])
+        self.assertEqual(display[:2], b"\x06\xe1")
+        backend.save_settings({"zvt_registration_command": "06 01"})
+        with self.assertRaises(ValueError):
+            backend.zvt_registration_frame()
+        backend.save_settings({"zvt_display_input_command": "06 22"})
+        with self.assertRaises(ValueError):
+            backend.zvt_display_input_frame(["Payment darf nicht raus"])
+
+    def test_zvt_key_parser_prefers_number_keys(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.zvt_parse_key(b"1"), "1")
+        self.assertEqual(backend.zvt_parse_key(b"F1"), "1")
+        self.assertEqual(backend.zvt_parse_key(b"OK"), "OK")
+
+    def test_zvt_number_keys_book_quantity_through_partdb_flow(self):
+        backend = self.load_app_module()
+        backend.save_session({"partdb_part_id": "123", "part_name": "Teil 123", "drawer_id": "main-1-1"})
+        controller = backend.ZvtStorageController()
+        with (
+            patch.object(controller, "show"),
+            patch.object(backend, "call_wled", return_value={"ok": True}),
+            patch.object(backend, "write_partdb_stock", return_value={"old_amount": 5, "new_amount": 7}) as write_stock,
+        ):
+            controller.apply_key("2")
+            controller.apply_key("2")
+            result = controller.apply_key("OK")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "synced")
+        write_stock.assert_called_once_with("123", "ADD", 2)
+        events = backend.api_stock_events(1)
+        self.assertEqual(events[0]["quantity"], 2)
+        self.assertEqual(events[0]["event_type"], "add")
 
     def test_wled_zones_can_be_created_by_drawer_or_cabinet(self):
         backend = self.load_app_module()

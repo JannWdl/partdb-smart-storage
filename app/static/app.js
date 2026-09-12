@@ -164,19 +164,26 @@ function renderSettingsPanel() {
       <p class="meta token-state">${cfg.partdb_api_token_configured ? "Part-DB Token ist gesetzt." : "Part-DB Token fehlt. Bitte setup-partdb-admin.sh ausführen oder Token eintragen."}</p>
       <label>WLED URL <input id="settingWledUrl" value="${cfg.wled_url || ""}"></label>
       <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
+      <label>ZVT Host <input id="settingZvtHost" value="${cfg.zvt_host || "192.168.178.44"}"></label>
+      <label>ZVT Port <input id="settingZvtPort" type="number" min="1" max="65535" value="${cfg.zvt_port || 20007}"></label>
       <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
       <label class="checkline"><input id="settingCameraEnabled" type="checkbox" ${cfg.barcode_camera_enabled ? "checked" : ""}> Kamera-Scanner aktiv</label>
       <label class="checkline"><input id="settingStockWriteEnabled" type="checkbox" ${cfg.partdb_stock_write_enabled ? "checked" : ""}> Part-DB Bestand schreiben</label>
+      <label class="checkline"><input id="settingZvtEnabled" type="checkbox" ${cfg.zvt_enabled ? "checked" : ""}> CCV ZVT aktiv</label>
     </div>
     <div class="wizard-actions">
       <button id="saveSettingsBtn" class="primary">Speichern</button>
       <button id="testWledBtn">WLED testen</button>
       <button id="testPartdbStockBtn">Part-DB Buchung testen</button>
+      <button id="zvtStartBtn">ZVT starten</button>
+      <button id="zvtStopBtn">ZVT stoppen</button>
     </div>
   `;
   $("saveSettingsBtn").onclick = saveSettings;
   $("testWledBtn").onclick = testWled;
   $("testPartdbStockBtn").onclick = () => testPartdbStock().catch((error) => toast(error.message));
+  $("zvtStartBtn").onclick = () => controlZvt("start").catch((error) => toast(error.message));
+  $("zvtStopBtn").onclick = () => controlZvt("stop").catch((error) => toast(error.message));
 }
 
 function renderSideTabs() {
@@ -377,9 +384,12 @@ async function saveSettings() {
       partdb_api_token: $("settingPartdbToken").value,
       wled_url: $("settingWledUrl").value,
       scan_timeout_seconds: Number($("settingTimeout").value || 30),
+      zvt_host: $("settingZvtHost").value,
+      zvt_port: Number($("settingZvtPort").value || 20007),
       barcode_enabled: $("settingBarcodeEnabled").checked,
       barcode_camera_enabled: $("settingCameraEnabled").checked,
       partdb_stock_write_enabled: $("settingStockWriteEnabled").checked,
+      zvt_enabled: $("settingZvtEnabled").checked,
     }),
   });
   toast("Einstellungen gespeichert.");
@@ -393,6 +403,11 @@ async function testPartdbStock() {
   if (!result.ok) throw new Error(result.message || "Part-DB Buchung nicht bereit.");
   beep("success");
   toast(result.message || "Part-DB Buchung bereit.");
+}
+
+async function controlZvt(action) {
+  const result = await api(`/api/zvt/${action}`, { method: "POST" });
+  toast(`ZVT ${result.status}${result.last_error ? ": " + result.last_error : ""}`);
 }
 
 async function testWled() {
