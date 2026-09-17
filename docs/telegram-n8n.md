@@ -4,7 +4,7 @@ Der Telegram-Bot ist ein Frontend für die bestehende Smart-Storage-API. Es gibt
 
 ## Funktionen
 
-Der Workflow `n8n/telegram-smart-storage.json` bietet Buttons und Befehle für:
+Der lokale Workflow `n8n/telegram-smart-storage-polling.json` bietet Befehle für:
 
 - Part-DB durchsuchen
 - aktuellen Part-DB-Bestand eines Teils lesen
@@ -91,17 +91,22 @@ Den Token nicht in Git oder in den Workflow schreiben.
 
 ## 3. Workflow in n8n importieren
 
+Für n8n auf dem Raspberry Pi oder in deinem LAN nimmst du die Polling-Variante:
+
 1. n8n öffnen.
 2. **Workflows -> Import from File** wählen.
-3. `n8n/telegram-smart-storage.json` importieren.
-4. Im Node **Telegram Trigger** ein neues Telegram-Credential mit dem BotFather-Token anlegen.
-5. Dasselbe Credential im Node **Telegram Antwort senden** auswählen.
-6. Den Node **⚙️ CONFIG HIER ÄNDERN** öffnen.
-7. `smartStorageBaseUrl` auf die aus Sicht von n8n erreichbare Smart-Storage-URL setzen, zum Beispiel `http://192.168.178.50:8090`.
-8. Optional `allowedTelegramUserIds` setzen. Mehrere IDs kommasepariert, zum Beispiel `123456789,987654321`. Leer bedeutet: jeder Benutzer, der den Bot erreicht, darf das Lager steuern.
-9. Workflow speichern und aktivieren.
+3. `n8n/telegram-smart-storage-polling.json` importieren.
+4. Den Node **CONFIG HIER ÄNDERN** öffnen.
+5. Bei `telegramBotToken` den BotFather-Token eintragen.
+6. `smartStorageBaseUrl` prüfen:
+   - n8n aus `docker-compose.n8n.yml`: `http://smart-storage:8090`
+   - externes n8n: `http://<pi-ip>:8090`
+7. Optional `allowedTelegramUserIds` setzen. Mehrere IDs kommasepariert, zum Beispiel `123456789,987654321`. Leer bedeutet: jeder Benutzer, der den Bot erreicht, darf das Lager steuern.
+8. Workflow speichern und aktivieren.
 
-Die Telegram-User-ID steht in einem Test-Event des Telegram-Triggers unter `message.from.id` bzw. bei Buttons unter `callback_query.from.id`.
+Diese Polling-Variante braucht kein Telegram-Credential in n8n und keinen öffentlichen HTTPS-Webhook.
+
+Die Telegram-User-ID zeigt der Bot an, wenn ein nicht freigegebener Benutzer schreibt. Alternativ kannst du sie über `@userinfobot` in Telegram auslesen.
 
 ## 4. Wo n8n laufen kann
 
@@ -123,7 +128,17 @@ Smart Storage selbst sollte nicht direkt ins Internet veröffentlicht werden. De
 
 ## 5. Telegram Webhook / HTTPS
 
+Die Datei `n8n/telegram-smart-storage.json` ist die Webhook-Variante mit **Telegram Trigger**. Sie ist nur sinnvoll, wenn deine n8n-Instanz öffentlich per HTTPS erreichbar ist.
+
 Der **Telegram Trigger** arbeitet mit einem Telegram-Webhook. Deshalb muss Telegram die Webhook-URL deiner n8n-Instanz über HTTPS erreichen können.
+
+Wenn n8n nur lokal auf dem Pi läuft, nimm stattdessen `n8n/telegram-smart-storage-polling.json`. Sonst erscheint beim Aktivieren:
+
+```text
+Workflow could not be published
+Error in node "Telegram Trigger":
+Bad request - please check your parameters
+```
 
 Wenn n8n nur im LAN läuft, brauchst du für n8n eine öffentliche HTTPS-Adresse, zum Beispiel über deinen vorhandenen Reverse Proxy oder einen Cloudflare Tunnel. Bei Self-Hosted-n8n muss `WEBHOOK_URL` auf diese externe Basis-URL zeigen, z. B.:
 
@@ -154,7 +169,7 @@ Wenn `PARTDB_STOCK_WRITE_ENABLED=false` gesetzt ist, meldet der Bot den vorhande
 Telegram
    |
    v
-n8n Telegram Trigger
+n8n Polling Workflow
    |
    v
 Smart Storage API :8090

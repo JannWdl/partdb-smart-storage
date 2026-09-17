@@ -191,8 +191,10 @@ http://<pi-ip>:5678
 In n8n den Workflow importieren:
 
 ```text
-n8n/telegram-smart-storage.workflow.json
+n8n/telegram-smart-storage-polling.json
 ```
+
+Die Polling-Variante ist für lokales n8n auf dem Raspberry Pi gedacht und braucht keinen öffentlichen HTTPS-Webhook. Die Webhook-Variante `n8n/telegram-smart-storage.json` ist nur für öffentlich erreichbare HTTPS-n8n-Instanzen.
 
 Wichtige Bot-Befehle:
 

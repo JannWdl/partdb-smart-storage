@@ -57,6 +57,8 @@ http://smart-storage:8090
 
 ## 4. Workflow importieren
 
+Für lokales n8n auf dem Raspberry Pi importierst du die Polling-Variante. Sie braucht keinen öffentlichen HTTPS-Webhook.
+
 In n8n:
 
 1. `Workflows` öffnen.
@@ -64,20 +66,22 @@ In n8n:
 3. Diese Datei importieren:
 
 ```text
-n8n/telegram-smart-storage.workflow.json
+n8n/telegram-smart-storage-polling.json
 ```
 
-4. Bei `Telegram Trigger` ein neues Telegram-Credential mit dem BotFather-Token erstellen.
-5. Dasselbe Credential auch beim Node `Antwort senden` auswählen.
-6. Workflow speichern.
-7. Workflow aktivieren.
+4. Den Node `CONFIG HIER ÄNDERN` öffnen.
+5. Bei `telegramBotToken` den BotFather-Token eintragen.
+6. `smartStorageBaseUrl` prüfen. Bei n8n aus diesem Docker Compose passt `http://smart-storage:8090`.
+7. Workflow speichern und aktivieren.
+
+Die Datei `n8n/telegram-smart-storage.json` ist die Webhook-Variante mit `Telegram Trigger`. Diese Variante funktioniert nur, wenn n8n öffentlich per HTTPS erreichbar ist. Auf einem lokalen Pi kommt sonst beim Aktivieren `Bad request - please check your parameters`.
 
 ## 5. Smart-Storage-URL prüfen
 
-Der HTTP-Node `Smart Storage Command` nutzt standardmäßig:
+Der Polling-Workflow nutzt standardmäßig:
 
 ```text
-{{$env.SMART_STORAGE_URL || 'http://smart-storage:8090'}}
+http://smart-storage:8090
 ```
 
 Auf dem Pi mit `docker-compose.n8n.yml` ist das richtig.

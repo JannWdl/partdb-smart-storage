@@ -898,9 +898,13 @@ def telegram_help_text():
         "/suche <text> - Teile in Part-DB suchen",
         "/find <text> - Teil suchen und Fach leuchten lassen",
         "/fach <id> - Fach leuchten lassen",
+        "/stock <teil-id> - Bestand auslesen",
+        "/inventory - zugeordnete Teile anzeigen",
         "/add <teil-id oder name> [menge] - Bestand erhöhen",
         "/remove <teil-id oder name> [menge] - Bestand senken",
+        "/assign <teil-id> <fach-id> <name> - Teil einem Fach zuordnen",
         "/wishlist <teil-id oder name> - Nachkauf markieren",
+        "/off - WLED ausschalten",
         "/events - letzte Buchungen anzeigen",
         "/help - Hilfe anzeigen",
     ])
@@ -928,6 +932,49 @@ def parse_term_and_quantity(args):
         except ValueError:
             pass
     return text, 1
+
+
+def telegram_stock_reply(part_id):
+    normalized_id = entity_id(part_id)
+    if not normalized_id:
+        return {"ok": False, "reply": "Bitte Part-ID angeben, zum Beispiel /stock 42."}
+    try:
+        part = partdb_get(f"/parts/{normalized_id}", timeout=4)
+        candidate = part_candidate(part) or {"id": normalized_id, "name": f"Teil {normalized_id}"}
+        amount = lot_amount(first_part_lot(normalized_id, part=part, timeout=4))
+    except Exception as exc:
+        return {"ok": False, "reply": f"Bestand konnte nicht gelesen werden: {exc}"}
+    assignment = find_assignment_by_part(normalized_id)
+    drawer = format_assignment_line(assignment) if assignment else "kein Fach zugeordnet"
+    return {"ok": True, "reply": f"{candidate['name']}\nTeil {normalized_id}\nBestand: {amount:g}\n{drawer}"}
+
+
+def telegram_inventory_reply(limit=20):
+    rows = assignments()[: max(1, min(50, int(limit or 20)))]
+    if not rows:
+        return {"ok": True, "reply": "Noch keine Teile zugeordnet."}
+    lines = []
+    for row in rows:
+        amount = "?"
+        try:
+            part = partdb_get(f"/parts/{entity_id(row['partdb_part_id'])}", timeout=3)
+            amount = f"{lot_amount(first_part_lot(row['partdb_part_id'], part=part, timeout=3)):g}"
+        except Exception:
+            pass
+        slot = row.get("slot") or {}
+        lines.append(f"{row['part_name']} · Bestand {amount} · {slot.get('label') or row['drawer_id']} · Teil {row['partdb_part_id']}")
+    return {"ok": True, "reply": "Lagerliste:\n" + "\n".join(lines)}
+
+
+def telegram_assign(args):
+    parts = str(args or "").strip().split(maxsplit=2)
+    if len(parts) < 3:
+        return {"ok": False, "reply": "Bitte so angeben: /assign <teil-id> <fach-id> <name>"}
+    try:
+        result = api_assign({"part_id": parts[0], "drawer_id": parts[1], "part_name": parts[2], "notes": "Telegram / n8n"})
+    except HTTPException as exc:
+        return {"ok": False, "reply": f"Zuordnung fehlgeschlagen: {exc.detail}"}
+    return {"ok": True, "reply": f"Zuordnung gespeichert: {result['slot']['label']} für {parts[2]}"}
 
 
 def telegram_command(text):
@@ -962,6 +1009,10 @@ def telegram_command(text):
             return {"ok": False, "reply": f"Fach „{args}“ nicht gefunden."}
         call_wled(wled_state_for_slot(slot, "locate"))
         return {"ok": True, "reply": f"{slot['label']} leuchtet: LED {slot['led_start']}-{slot['led_stop'] - 1}."}
+    if command in ("/stock", "/bestand"):
+        return telegram_stock_reply(args)
+    if command in ("/inventory", "/lager"):
+        return telegram_inventory_reply()
     if command in ("/add", "/plus", "+"):
         term, quantity = parse_term_and_quantity(args)
         result = direct_stock_action("ADD", term, quantity)
@@ -974,6 +1025,14 @@ def telegram_command(text):
         term, quantity = parse_term_and_quantity(args)
         result = direct_stock_action("WISHLIST", term, quantity)
         return {"ok": result["ok"], "reply": result["message"]}
+    if command in ("/assign", "/zuordnen"):
+        return telegram_assign(args)
+    if command == "/off":
+        try:
+            call_wled({"on": False})
+        except Exception as exc:
+            return {"ok": False, "reply": f"WLED konnte nicht ausgeschaltet werden: {exc}"}
+        return {"ok": True, "reply": "Licht aus."}
     if command == "/events":
         events = api_stock_events(8)
         if not events:

@@ -1,0 +1,264 @@
+{
+  "name": "Part-DB Smart Storage - Telegram Bot Polling",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "4f5d91a1-f17e-492d-96bd-76b8c00f36db",
+      "name": "Alle 5 Sekunden",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b7dfd215-4358-4bfb-812d-0eb930949e98",
+              "name": "telegramBotToken",
+              "value": "BOT_TOKEN_HIER_EINTRAGEN",
+              "type": "string"
+            },
+            {
+              "id": "5e9a1558-725b-4f44-a889-fc99445c2fbc",
+              "name": "smartStorageBaseUrl",
+              "value": "http://smart-storage:8090",
+              "type": "string"
+            },
+            {
+              "id": "49451fb9-f030-44f2-b14b-5e1bf08b0f1f",
+              "name": "allowedTelegramUserIds",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8f7b5dbc-712b-4e93-9447-afee57161f52",
+      "name": "CONFIG HIER ÄNDERN",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -640,
+        0
+      ],
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $getWorkflowStaticData('global');\nconst token = String($json.telegramBotToken || '').trim();\nif (!token || token.includes('BOT_TOKEN_HIER')) {\n  return [];\n}\nconst offset = Number(data.telegramOffset || 0);\nconst allowed = encodeURIComponent(JSON.stringify(['message']));\nconst url = `https://api.telegram.org/bot${token}/getUpdates?timeout=0&offset=${offset}&allowed_updates=${allowed}`;\nreturn [{ json: { ...$json, getUpdatesUrl: url } }];"
+      },
+      "id": "9f3d7670-3bc0-426d-b98b-5d8fb75a1e72",
+      "name": "Telegram Abruf vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.getUpdatesUrl }}",
+        "options": {
+          "timeout": 12000
+        }
+      },
+      "id": "d53ceebd-8378-4208-ac19-bac5556aa17e",
+      "name": "Telegram Updates holen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('CONFIG HIER ÄNDERN').first().json;\nconst data = $getWorkflowStaticData('global');\nconst updates = Array.isArray($json.result) ? $json.result : [];\nconst allowedIds = String(config.allowedTelegramUserIds || '').split(',').map(x => x.trim()).filter(Boolean);\nlet nextOffset = Number(data.telegramOffset || 0);\nconst out = [];\nfor (const update of updates) {\n  if (Number.isFinite(update.update_id)) {\n    nextOffset = Math.max(nextOffset, update.update_id + 1);\n  }\n  const message = update.message || {};\n  const text = String(message.text || '').trim();\n  const chatId = message.chat?.id;\n  const userId = message.from?.id;\n  if (!text || !chatId) continue;\n  if (allowedIds.length && !allowedIds.includes(String(userId))) {\n    out.push({ json: { ...config, chatId, userId, text: '/help', denied: true } });\n    continue;\n  }\n  out.push({ json: { ...config, chatId, userId, text } });\n}\ndata.telegramOffset = nextOffset;\nreturn out;"
+      },
+      "id": "03e037f8-6af0-4681-94f2-e9b0823f5ea2",
+      "name": "Updates aufteilen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ String($json.smartStorageBaseUrl || '').replace(/\\/+$/, '') + '/api/telegram/command' }}",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.denied ? '/help' : $json.text, chat_id: $json.chatId, user: $json.userId }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "0f5cb6e9-4e0d-4b8b-9790-810bd32c4da4",
+      "name": "Smart Storage fragen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Updates aufteilen').item.json;\nlet reply = $json.reply || $json.message || $json.error?.message || $json.detail || 'Smart Storage hat keine Antwort geliefert.';\nif (original.denied) {\n  reply = `Nicht freigegeben. Deine Telegram User-ID: ${original.userId}`;\n}\nreturn [{ json: { ...original, reply: String(reply).slice(0, 3500) } }];"
+      },
+      "id": "21e740c2-f4f3-42f3-b901-4710999e1139",
+      "name": "Antwort vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $json.telegramBotToken + '/sendMessage' }}",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, text: $json.reply, disable_web_page_preview: true }) }}",
+        "options": {
+          "timeout": 12000
+        }
+      },
+      "id": "74361269-9e48-48b7-8b69-6ff6b67fb23a",
+      "name": "Telegram Antwort senden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Lokaler Pi ohne HTTPS\nDieser Workflow nutzt Polling statt Telegram Trigger.\n\n1. Im Node **CONFIG HIER ÄNDERN** Bot-Token eintragen.\n2. Smart-Storage-URL prüfen.\n3. Workflow aktivieren.\n\nKein öffentlicher HTTPS-Webhook nötig.",
+        "height": 240,
+        "width": 430
+      },
+      "id": "e9200590-5530-490a-8204-79a9529f8953",
+      "name": "Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -860,
+        -340
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Alle 5 Sekunden": {
+      "main": [
+        [
+          {
+            "node": "CONFIG HIER ÄNDERN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG HIER ÄNDERN": {
+      "main": [
+        [
+          {
+            "node": "Telegram Abruf vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Abruf vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Telegram Updates holen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Updates holen": {
+      "main": [
+        [
+          {
+            "node": "Updates aufteilen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updates aufteilen": {
+      "main": [
+        [
+          {
+            "node": "Smart Storage fragen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Storage fragen": {
+      "main": [
+        [
+          {
+            "node": "Antwort vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Antwort vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Telegram Antwort senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Berlin"
+  },
+  "versionId": "43349aa2-ed85-4782-a6a3-b50643610934",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
