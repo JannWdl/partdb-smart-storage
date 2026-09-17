@@ -179,6 +179,7 @@ n8n auf dem Pi starten:
 cd /opt/partdb-smart-storage
 sudo ./scripts/fix-n8n-permissions.sh
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
+sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml ps
 ```
 
 Danach n8n öffnen:

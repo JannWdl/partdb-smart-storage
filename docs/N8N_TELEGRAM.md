@@ -28,9 +28,10 @@ cd /opt/partdb-smart-storage
 sudo git pull
 sudo ./scripts/fix-n8n-permissions.sh
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
+sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml ps
 ```
 
-Danach n8n öffnen:
+Warte danach etwa 20 bis 60 Sekunden, bis `partdb-smart-storage-n8n` als `Up` angezeigt wird. Danach n8n öffnen:
 
 ```text
 http://<pi-ip>:5678
@@ -136,12 +137,21 @@ cd /opt/partdb-smart-storage
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml ps
 ```
 
+Wenn `ps` den Container als `Up` zeigt, aber der Browser noch nicht lädt, warte kurz und öffne die Seite erneut. Beim ersten Start erzeugt n8n erst seine lokale Konfiguration.
+
+Direkt auf dem Pi testen:
+
+```bash
+curl -I http://localhost:5678
+```
+
 Wenn im Log `EACCES: permission denied, open '/home/node/.n8n/config'` steht:
 
 ```bash
 cd /opt/partdb-smart-storage
 sudo ./scripts/fix-n8n-permissions.sh
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
+sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml ps
 ```
 
 Workflow-Ausführungen findest du in n8n unter `Executions`.
