@@ -1,0 +1,187 @@
+{
+  "name": "Part-DB Smart Storage - Telegram Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        120
+      ],
+      "id": "a72d79ff-0950-477f-b15c-f2b76ed4d6d4",
+      "name": "Telegram Trigger",
+      "webhookId": "8c705ca7-4248-4bdc-8c7e-9258393606e0"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "62970925-80c0-4448-aa05-96af1243d591",
+              "name": "smartStorageUrl",
+              "value": "http://PI-IP:8090",
+              "type": "string"
+            },
+            {
+              "id": "d1471d37-43fa-4788-908d-05a4e6cb9468",
+              "name": "allowedChatIds",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -480,
+        120
+      ],
+      "id": "4c9629cc-55c8-4bd4-bf4b-f6b13f11a9dd",
+      "name": "⚙️ KONFIGURATION"
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = $input.first().json;\n\nconst baseUrl = String(u.smartStorageUrl || '').trim().replace(/\\/+$/, '');\nif (!baseUrl || baseUrl.includes('PI-IP')) {\n  throw new Error('Im Knoten ⚙️ KONFIGURATION zuerst smartStorageUrl setzen, z. B. http://192.168.178.120:8090');\n}\n\nlet chatId = null;\nlet text = '';\nlet isCallback = false;\n\nif (u.callback_query) {\n  isCallback = true;\n  chatId = u.callback_query.message?.chat?.id;\n  text = String(u.callback_query.data || '').trim();\n} else if (u.message) {\n  chatId = u.message.chat?.id;\n  text = String(u.message.text || '').trim();\n}\n\nif (chatId === null || chatId === undefined) return [];\n\nconst allowed = String(u.allowedChatIds || '')\n  .split(',')\n  .map(v => v.trim())\n  .filter(Boolean);\nif (allowed.length && !allowed.includes(String(chatId))) return [];\n\nlet action = 'help';\nlet query = '';\nlet quantity = 1;\n\nif (!text) {\n  action = 'help';\n} else if (isCallback && text.includes(':')) {\n  const pos = text.indexOf(':');\n  action = text.slice(0, pos).trim().toLowerCase();\n  query = text.slice(pos + 1).trim();\n} else if (!text.startsWith('/')) {\n  action = 'stock';\n  query = text;\n} else {\n  const firstSpace = text.indexOf(' ');\n  const rawCommand = (firstSpace === -1 ? text : text.slice(0, firstSpace))\n    .toLowerCase()\n    .replace(/@.*$/, '');\n  const rest = firstSpace === -1 ? '' : text.slice(firstSpace + 1).trim();\n\n  const commands = {\n    '/start': 'help',\n    '/hilfe': 'help',\n    '/help': 'help',\n    '/bestand': 'stock',\n    '/stock': 'stock',\n    '/plus': 'add',\n    '/add': 'add',\n    '/einlagern': 'add',\n    '/minus': 'remove',\n    '/remove': 'remove',\n    '/entnehmen': 'remove',\n    '/licht': 'locate',\n    '/leuchten': 'locate',\n    '/locate': 'locate',\n    '/suche': 'search',\n    '/search': 'search',\n    '/faecher': 'assignments',\n    '/fächer': 'assignments',\n    '/drawers': 'assignments',\n    '/events': 'events',\n    '/verlauf': 'events',\n    '/history': 'events',\n    '/aus': 'off',\n    '/off': 'off'\n  };\n\n  action = commands[rawCommand] || 'help';\n  query = rest;\n\n  if ((action === 'add' || action === 'remove') && rest) {\n    const parts = rest.split(/\\s+/);\n    if (parts.length >= 2 && /^\\d+$/.test(parts[parts.length - 1])) {\n      quantity = Math.max(1, Math.min(9999, Number(parts.pop())));\n      query = parts.join(' ').trim();\n    }\n  }\n}\n\nreturn [{\n  json: {\n    chatId: String(chatId),\n    requestUrl: `${baseUrl}/api/telegram/action`,\n    requestBody: { action, query, quantity },\n    inputText: text\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        120
+      ],
+      "id": "83a952cc-3021-43a4-8145-ad68f4691acd",
+      "name": "Befehl parsen"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.requestUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        32,
+        120
+      ],
+      "id": "9a3143ce-47fa-4e02-a5ea-f62de01c6e38",
+      "name": "Smart Storage API"
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Befehl parsen').item.json.chatId }}",
+        "text": "={{ $json.text || ($json.detail ? ('❌ ' + (typeof $json.detail === 'string' ? $json.detail : JSON.stringify($json.detail))) : '❌ Smart Storage hat keine verwertbare Antwort geliefert.') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        120
+      ],
+      "id": "338280ea-164c-48b1-bdc4-1f2ff7da6f98",
+      "name": "Telegram Antwort"
+    },
+    {
+      "parameters": {
+        "content": "## Einrichtung\n1. Telegram-Credential im Trigger und bei **Telegram Antwort** auswählen.\n2. **⚙️ KONFIGURATION** öffnen und `smartStorageUrl` setzen.\n3. Optional `allowedChatIds` als kommagetrennte Telegram-Chat-IDs setzen.\n4. Workflow aktivieren.\n\nBeispiele: `/bestand M3`, `/plus M3 10`, `/minus 42 2`, `/licht Widerstand`, `/events`, `/aus`.\n\nNormaler Text ohne Befehl wird als Bestandsabfrage behandelt.",
+        "height": 300,
+        "width": 430
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        -260
+      ],
+      "id": "b33ac9a2-b012-4c51-b78a-7a91a135a7fb",
+      "name": "Einrichtung"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "⚙️ KONFIGURATION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ KONFIGURATION": {
+      "main": [
+        [
+          {
+            "node": "Befehl parsen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Befehl parsen": {
+      "main": [
+        [
+          {
+            "node": "Smart Storage API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smart Storage API": {
+      "main": [
+        [
+          {
+            "node": "Telegram Antwort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "tags": []
+}
