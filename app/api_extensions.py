@@ -127,4 +127,4 @@ def api_stock_change(data: dict = Body(...)):
 
 
 if __name__ == "__main__":
-    uvicorn.run("api_extensions:app", host="0.0.0.0", port=8090)
+    uvicorn.run(app, host="0.0.0.0", port=8090)
