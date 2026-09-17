@@ -10,4 +10,4 @@ COPY *.py .
 COPY static ./static
 
 EXPOSE 8090
-CMD ["python", "/app/app.py"]
+CMD ["uvicorn", "telegram_api:app", "--host", "0.0.0.0", "--port", "8090"]
