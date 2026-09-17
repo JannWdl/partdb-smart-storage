@@ -10,4 +10,4 @@ COPY *.py .
 COPY static ./static
 
 EXPOSE 8090
-CMD ["python", "/app/app.py"]
+CMD ["python", "/app/api_extensions.py"]
