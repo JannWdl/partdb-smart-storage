@@ -26,6 +26,7 @@ Wenn n8n direkt mit diesem Projekt auf dem Pi laufen soll:
 ```bash
 cd /opt/partdb-smart-storage
 sudo git pull
+sudo ./scripts/fix-n8n-permissions.sh
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
 ```
 
@@ -133,6 +134,14 @@ n8n läuft?
 ```bash
 cd /opt/partdb-smart-storage
 sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml ps
+```
+
+Wenn im Log `EACCES: permission denied, open '/home/node/.n8n/config'` steht:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo ./scripts/fix-n8n-permissions.sh
+sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
 ```
 
 Workflow-Ausführungen findest du in n8n unter `Executions`.
