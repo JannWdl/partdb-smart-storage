@@ -30,6 +30,8 @@ Raspberry Pi OS 64-bit
     Smart Storage Web-App   http://pi:8090
       Config-DB             ./data/smart-storage/smart-storage.db
       WLED API              http://192.168.178.220/json/state
+    n8n optional            http://pi:5678
+      Telegram Bot          Workflow importierbar über n8n
 ```
 
 ## Schnellstart
@@ -166,6 +168,44 @@ Standardcodes:
 - `CANCEL` beendet die aktuelle Scan-Session.
 
 Wenn `Part-DB Bestand schreiben` aktiv ist, ändern `ADD` und `REMOVE` den Bestand in Part-DB. Wenn der Schalter aus ist, läuft der Barcode-Flow als lokaler Testmodus. Die aktuelle Scan-Session läuft standardmäßig nach 30 Sekunden ab. Erfolg wird grün signalisiert, Fehler rot, Wunschliste blau und Locate gelb.
+
+## Telegram Bot mit n8n
+
+Optional kann n8n als Telegram-Fernbedienung für Smart Storage laufen. Damit kannst du per Telegram Teile suchen, Fächer leuchten lassen, Bestand erhöhen/senken und Buchungen anzeigen.
+
+n8n auf dem Pi starten:
+
+```bash
+cd /opt/partdb-smart-storage
+sudo docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
+```
+
+Danach n8n öffnen:
+
+```text
+http://<pi-ip>:5678
+```
+
+In n8n den Workflow importieren:
+
+```text
+n8n/telegram-smart-storage.workflow.json
+```
+
+Wichtige Bot-Befehle:
+
+```text
+/status
+/suche 10k
+/find 10k
+/fach 1
+/add 123 1
+/remove 123 1
+/wishlist 123
+/events
+```
+
+Die komplette Einrichtung steht in [docs/N8N_TELEGRAM.md](docs/N8N_TELEGRAM.md).
 
 ## WLED und Setup
 

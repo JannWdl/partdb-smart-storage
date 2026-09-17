@@ -1,0 +1,20 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: partdb-smart-storage-n8n
+    restart: unless-stopped
+    depends_on:
+      - smart-storage
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-partdb-smart-storage.local}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://partdb-smart-storage.local:5678/}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Berlin}
+      TZ: ${TZ:-Europe/Berlin}
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-false}
+      SMART_STORAGE_URL: ${SMART_STORAGE_INTERNAL_URL:-http://smart-storage:8090}
+    volumes:
+      - ./data/n8n:/home/node/.n8n

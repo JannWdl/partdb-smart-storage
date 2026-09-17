@@ -464,6 +464,35 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(first_payload["seg"][-1]["start"], 0)
         self.assertEqual(first_payload["seg"][-1]["stop"], 4)
 
+    def test_telegram_help_lists_stock_commands(self):
+        backend = self.load_app_module()
+        result = backend.api_telegram_command({"text": "/help"})
+        self.assertTrue(result["ok"])
+        self.assertIn("/add", result["reply"])
+        self.assertIn("/find", result["reply"])
+
+    def test_telegram_drawer_command_lights_slot(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "call_wled", return_value={"ok": True}) as wled:
+            result = backend.api_telegram_command({"text": "/fach 1"})
+        self.assertTrue(result["ok"])
+        self.assertIn("LED 0-3", result["reply"])
+        payload = wled.call_args.args[0]
+        self.assertEqual(payload["seg"][-1]["i"][0::2], [0, 1, 2, 3])
+
+    def test_telegram_add_uses_assignment_and_quantity(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "call_wled", return_value={"ok": True}):
+            backend.api_assign({"part_id": "123", "part_name": "Widerstand 10k", "drawer_id": "1"})
+        with patch.object(backend, "call_wled", return_value={"ok": True}), patch.object(backend, "write_partdb_stock", return_value={"old_amount": 1, "new_amount": 3}) as write_stock:
+            result = backend.api_telegram_command({"text": "/add 123 2"})
+        self.assertTrue(result["ok"])
+        self.assertIn("2 Zugang", result["reply"])
+        write_stock.assert_called_once_with("123", "ADD", 2)
+        events = backend.api_stock_events(1)
+        self.assertEqual(events[0]["quantity"], 2)
+        self.assertEqual(events[0]["status"], "synced")
+
 
 if __name__ == "__main__":
     unittest.main()

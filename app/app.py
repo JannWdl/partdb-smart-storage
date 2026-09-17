@@ -826,6 +826,166 @@ def find_assignment_by_drawer(drawer_id):
     return None
 
 
+def find_assignment_by_text(query):
+    text = str(query or "").strip()
+    if not text:
+        return None
+    normalized = normalize(text)
+    exact_id = entity_id(text)
+    for item in assignments():
+        values = [
+            item.get("partdb_part_id"),
+            item.get("part_id"),
+            item.get("drawer_id"),
+            item.get("slot_id"),
+            item.get("part_name"),
+            item.get("notes"),
+        ]
+        if exact_id and any(str(value or "").strip() == exact_id for value in values[:4]):
+            return item
+        haystack = normalize(" ".join(str(value or "") for value in values))
+        if normalized and normalized in haystack:
+            return item
+    return None
+
+
+def direct_stock_action(action, term, quantity=1):
+    action = str(action or "").upper()
+    quantity = max(1, int(float(quantity or 1)))
+    assignment = find_assignment_by_text(term)
+    part_id = assignment["partdb_part_id"] if assignment else entity_id(term)
+    part_name = assignment["part_name"] if assignment else f"Teil {part_id}"
+    drawer_id = assignment["drawer_id"] if assignment else None
+    slot = assignment.get("slot") if assignment else None
+    if not part_id:
+        record_stock_event("scan_error", None, None, drawer_id, quantity, action, "Kein Teil angegeben.", status="failed")
+        return {"ok": False, "status": "failed", **feedback("error", "Kein Teil angegeben.", slot)}
+    event_type = {"ADD": "add", "REMOVE": "remove", "WISHLIST": "wishlist"}[action]
+    if action == "WISHLIST":
+        message = "Nachkauf lokal markiert."
+        record_stock_event(event_type, part_id, part_name, drawer_id, quantity, action, message, status="local")
+        return {"ok": True, "status": "local", "event_type": event_type, "assignment": assignment, **feedback("wishlist", message, slot)}
+    if not settings()["partdb_stock_write_enabled"]:
+        message = "Testmodus: Bestand nicht in Part-DB geändert."
+        record_stock_event(event_type, part_id, part_name, drawer_id, quantity, action, message, status="local")
+        return {"ok": True, "status": "local", "event_type": event_type, "assignment": assignment, **feedback("success", message, slot)}
+    try:
+        partdb_result = write_partdb_stock(part_id, action, quantity)
+    except Exception as exc:
+        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        record_stock_event(event_type, part_id, part_name, drawer_id, quantity, action, message, status="failed", sync_error=str(exc))
+        return {"ok": False, "status": "failed", "event_type": event_type, "assignment": assignment, **feedback("error", message, slot)}
+    message = {
+        "ADD": f"{quantity} Zugang in Part-DB gebucht.",
+        "REMOVE": f"{quantity} Abgang in Part-DB gebucht.",
+    }[action]
+    record_stock_event(event_type, part_id, part_name, drawer_id, quantity, action, message, status="synced", partdb_result=partdb_result)
+    return {"ok": True, "status": "synced", "event_type": event_type, "assignment": assignment, "partdb": partdb_result, **feedback("success", message, slot)}
+
+
+def format_assignment_line(item):
+    slot = item.get("slot") or {}
+    location = slot.get("label") or item.get("drawer_id") or "kein Fach"
+    return f"{item['part_name']} (Teil {item['partdb_part_id']}, {location})"
+
+
+def telegram_help_text():
+    return "\n".join([
+        "Smart Storage Bot",
+        "",
+        "Befehle:",
+        "/status - Dienste prüfen",
+        "/suche <text> - Teile in Part-DB suchen",
+        "/find <text> - Teil suchen und Fach leuchten lassen",
+        "/fach <id> - Fach leuchten lassen",
+        "/add <teil-id oder name> [menge] - Bestand erhöhen",
+        "/remove <teil-id oder name> [menge] - Bestand senken",
+        "/wishlist <teil-id oder name> - Nachkauf markieren",
+        "/events - letzte Buchungen anzeigen",
+        "/help - Hilfe anzeigen",
+    ])
+
+
+def split_telegram_command(text):
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return "", ""
+    parts = cleaned.split(maxsplit=1)
+    command = parts[0].split("@", 1)[0].lower()
+    args = parts[1].strip() if len(parts) > 1 else ""
+    return command, args
+
+
+def parse_term_and_quantity(args):
+    text = str(args or "").strip()
+    if not text:
+        return "", 1
+    parts = text.rsplit(maxsplit=1)
+    if len(parts) == 2:
+        try:
+            quantity = max(1, int(float(parts[1].replace(",", "."))))
+            return parts[0].strip(), quantity
+        except ValueError:
+            pass
+    return text, 1
+
+
+def telegram_command(text):
+    command, args = split_telegram_command(text)
+    if command in ("", "/start", "/help", "help"):
+        return {"ok": True, "reply": telegram_help_text()}
+    if command == "/status":
+        state = health()
+        return {"ok": True, "reply": f"Smart Storage läuft.\nPart-DB: {'ok' if state['partdb'] else 'nicht erreichbar'}\nWLED: {'ok' if state['wled'] else 'nicht erreichbar'}"}
+    if command in ("/suche", "/search", "/part"):
+        if not args:
+            return {"ok": False, "reply": "Bitte Suchtext angeben, zum Beispiel /suche 10k."}
+        try:
+            results = partdb_search(args)[:5]
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, str) else exc.detail.get("detail", exc.detail)
+            return {"ok": False, "reply": f"Part-DB Suche fehlgeschlagen: {detail}"}
+        if not results:
+            return {"ok": True, "reply": f"Keine Teile für „{args}“ gefunden."}
+        lines = [f"{part['id']}: {part['name']}" for part in results]
+        return {"ok": True, "reply": "Gefundene Teile:\n" + "\n".join(lines)}
+    if command in ("/find", "/leuchten", "/locate"):
+        assignment = find_assignment_by_text(args)
+        if not assignment or not assignment.get("slot"):
+            feedback("error", "Keine Zuordnung gefunden.")
+            return {"ok": False, "reply": f"Keine Zuordnung für „{args}“ gefunden."}
+        call_wled(wled_state_for_slot(assignment["slot"], "locate"))
+        return {"ok": True, "reply": f"Leuchtet: {format_assignment_line(assignment)}"}
+    if command in ("/fach", "/drawer"):
+        slot = slot_by_id(args)
+        if not slot:
+            return {"ok": False, "reply": f"Fach „{args}“ nicht gefunden."}
+        call_wled(wled_state_for_slot(slot, "locate"))
+        return {"ok": True, "reply": f"{slot['label']} leuchtet: LED {slot['led_start']}-{slot['led_stop'] - 1}."}
+    if command in ("/add", "/plus", "+"):
+        term, quantity = parse_term_and_quantity(args)
+        result = direct_stock_action("ADD", term, quantity)
+        return {"ok": result["ok"], "reply": result["message"]}
+    if command in ("/remove", "/minus", "-"):
+        term, quantity = parse_term_and_quantity(args)
+        result = direct_stock_action("REMOVE", term, quantity)
+        return {"ok": result["ok"], "reply": result["message"]}
+    if command in ("/wishlist", "/nachkauf"):
+        term, quantity = parse_term_and_quantity(args)
+        result = direct_stock_action("WISHLIST", term, quantity)
+        return {"ok": result["ok"], "reply": result["message"]}
+    if command == "/events":
+        events = api_stock_events(8)
+        if not events:
+            return {"ok": True, "reply": "Noch keine Buchungen vorhanden."}
+        lines = []
+        for event in events:
+            sign = {"add": "+", "remove": "-", "wishlist": "Nachkauf", "scan_error": "Fehler"}.get(event["event_type"], event["event_type"])
+            lines.append(f"{sign} {event['quantity']}x {event.get('part_name') or event.get('partdb_part_id') or 'unbekannt'} ({event['status']})")
+        return {"ok": True, "reply": "Letzte Buchungen:\n" + "\n".join(lines)}
+    return {"ok": False, "reply": f"Unbekannter Befehl: {command}\n\n{telegram_help_text()}"}
+
+
 def handle_action(action, code):
     cfg = settings()
     session = current_session()
@@ -1503,6 +1663,12 @@ def api_zvt_input(data: dict = Body(...)):
     if not key:
         raise HTTPException(status_code=400, detail="Taste fehlt.")
     return zvt_controller.apply_key(key)
+
+
+@app.post("/api/telegram/command")
+def api_telegram_command(data: dict = Body(...)):
+    text = str(data.get("text") or "").strip()
+    return telegram_command(text)
 
 
 @app.exception_handler(requests.RequestException)
