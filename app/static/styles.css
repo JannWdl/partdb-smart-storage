@@ -579,6 +579,63 @@ button.danger {
   overflow-wrap: anywhere;
 }
 
+.voice-card {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.voice-card.listening {
+  animation: voicePulse 1.4s ease-in-out infinite;
+}
+
+.voice-mic {
+  min-height: 72px;
+  font-size: 20px;
+}
+
+.voice-card div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  background: rgba(36, 42, 50, .58);
+}
+
+.voice-card span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.voice-card b {
+  overflow-wrap: anywhere;
+}
+
+.voice-line {
+  margin: 10px 0;
+}
+
+.voice-examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.voice-examples button {
+  min-height: 48px;
+  font-size: 13px;
+}
+
+.voice-warning {
+  color: var(--red);
+}
+
+@keyframes voicePulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 12px rgba(255, 208, 90, .35)); }
+}
+
 #toast {
   position: fixed;
   left: 50%;

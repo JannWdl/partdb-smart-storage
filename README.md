@@ -211,6 +211,32 @@ Wichtige Bot-Befehle:
 
 Die komplette Einrichtung steht in [docs/N8N_TELEGRAM.md](docs/N8N_TELEGRAM.md).
 
+## Web-Sprachassistent
+
+Smart Storage enthält einen lokalen Tab `Sprache`. Du öffnest die normale Weboberfläche auf dem Handy und nutzt dort den Mikrofonbutton oder die Texteingabe.
+
+Beispiele:
+
+```text
+Suche ESP32
+Leuchte Widerstand 10k
+Bestand von Teil 123
+Buche 5 von Teil 123 ein
+Nimm 2 von Teil 123 raus
+Licht aus
+```
+
+Die Antwort wird im Browser angezeigt und per Sprachausgabe vorgelesen. Auf Android/iOS kann Mikrofonzugriff je nach Browser HTTPS benötigen. Wenn das Mikrofon blockiert wird, funktioniert die Texteingabe im Sprach-Tab weiterhin.
+
+Standardmäßig nutzt der Sprachassistent einen robusten Regelmodus. Für freiere Unterhaltung kann in den Einstellungen eine lokale KI aktiviert werden, zum Beispiel Ollama:
+
+```text
+KI URL: http://<ollama-host>:11434
+KI Modell: llama3.2:3b
+```
+
+Wenn die KI nicht erreichbar ist, fällt Smart Storage automatisch auf den Regelmodus zurück.
+
 ## WLED und Setup
 
 Der Setup-Assistent berechnet die LEDs als fortlaufenden Stripe, nicht als Matrix:

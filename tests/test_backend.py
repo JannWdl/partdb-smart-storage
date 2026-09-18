@@ -519,6 +519,23 @@ class BackendTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         wled.assert_called_once_with({"on": False})
 
+    def test_voice_command_maps_german_stock_sentence(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.voice_to_telegram_command("Bestand von Teil 123"), "/stock 123")
+
+    def test_voice_command_maps_german_add_sentence(self):
+        backend = self.load_app_module()
+        self.assertEqual(backend.voice_to_telegram_command("Buche fünf Stück von Teil 123 ein"), "/add 123 5")
+
+    def test_voice_command_endpoint_uses_same_command_logic(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "direct_stock_action", return_value={"ok": True, "message": "5 Zugang in Part-DB gebucht."}) as action:
+            result = backend.api_voice_command({"text": "Buche 5 von Teil 123 ein"})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["command"], "/add 123 5")
+        self.assertEqual(result["reply"], "5 Zugang in Part-DB gebucht.")
+        action.assert_called_once_with("ADD", "123", 5)
+
 
 if __name__ == "__main__":
     unittest.main()

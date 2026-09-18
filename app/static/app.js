@@ -19,6 +19,11 @@ let state = {
   keyboardScanBuffer: "",
   keyboardScanAt: 0,
   lastScanStatus: "",
+  voiceRecognition: null,
+  voiceListening: false,
+  voiceTranscript: "",
+  voiceReply: "",
+  voiceCommand: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +81,7 @@ async function loadAll() {
   renderAssignments();
   renderSettingsPanel();
   renderBarcodePanel();
+  renderVoicePanel();
   renderEffectsPanel();
   renderPrintPanel();
   renderSetupGuide();
@@ -166,10 +172,13 @@ function renderSettingsPanel() {
       <label>Scan-Timeout s <input id="settingTimeout" type="number" min="5" max="300" value="${cfg.scan_timeout_seconds || 30}"></label>
       <label>ZVT Host <input id="settingZvtHost" value="${cfg.zvt_host || "192.168.178.44"}"></label>
       <label>ZVT Port <input id="settingZvtPort" type="number" min="1" max="65535" value="${cfg.zvt_port || 20007}"></label>
+      <label>KI URL <input id="settingAssistantAiUrl" placeholder="http://ollama:11434 oder http://pi:11434" value="${cfg.assistant_ai_url || ""}"></label>
+      <label>KI Modell <input id="settingAssistantAiModel" value="${cfg.assistant_ai_model || "llama3.2:3b"}"></label>
       <label class="checkline"><input id="settingBarcodeEnabled" type="checkbox" ${cfg.barcode_enabled ? "checked" : ""}> Barcode aktiv</label>
       <label class="checkline"><input id="settingCameraEnabled" type="checkbox" ${cfg.barcode_camera_enabled ? "checked" : ""}> Kamera-Scanner aktiv</label>
       <label class="checkline"><input id="settingStockWriteEnabled" type="checkbox" ${cfg.partdb_stock_write_enabled ? "checked" : ""}> Part-DB Bestand schreiben</label>
       <label class="checkline"><input id="settingZvtEnabled" type="checkbox" ${cfg.zvt_enabled ? "checked" : ""}> CCV ZVT aktiv</label>
+      <label class="checkline"><input id="settingAssistantAiEnabled" type="checkbox" ${cfg.assistant_ai_enabled ? "checked" : ""}> Lokale KI für freie Sprache aktiv</label>
       <p id="zvtStatus" class="meta" role="status">CCV: Status wird geladen.</p>
     </div>
     <div class="wizard-actions">
@@ -275,6 +284,172 @@ function renderBarcodePanel() {
   $("scanStatus").textContent = state.lastScanStatus;
   focusScanInput();
   renderStockEvents();
+}
+
+function voiceRecognitionClass() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function renderVoicePanel() {
+  const root = $("voicePanel");
+  const supported = Boolean(voiceRecognitionClass());
+  const aiActive = Boolean(state.settings?.assistant_ai_enabled && state.settings?.assistant_ai_url);
+  root.innerHTML = `
+    <p class="meta">Sprich Lagerbefehle direkt im Browser. Auf iPhone und Android kann das Mikrofon je nach Browser HTTPS benötigen.</p>
+    <p class="meta">${aiActive ? `Freie KI-Unterhaltung ist aktiv: ${state.settings.assistant_ai_model}.` : "Regelmodus aktiv. Für freie KI-Unterhaltung in den Einstellungen Ollama/KI-URL eintragen und aktivieren."}</p>
+    <div class="voice-card ${state.voiceListening ? "listening" : ""}">
+      <button id="voiceListenBtn" class="voice-mic ${state.voiceListening ? "danger" : "primary"}" ${supported ? "" : "disabled"}>
+        ${state.voiceListening ? "Zuhören stoppen" : "Sprechen"}
+      </button>
+      <div>
+        <span>Erkannt</span>
+        <b>${state.voiceTranscript || "noch nichts"}</b>
+      </div>
+      <div>
+        <span>Ausgeführt</span>
+        <b>${state.voiceCommand || "noch nichts"}</b>
+      </div>
+      <div>
+        <span>Antwort</span>
+        <b>${state.voiceReply || "bereit"}</b>
+      </div>
+    </div>
+    ${supported ? "" : `<p class="meta voice-warning">Dieser Browser unterstützt Web Speech Recognition nicht. Du kannst unten trotzdem tippen und dir die Antwort vorlesen lassen.</p>`}
+    <div class="form-grid voice-line">
+      <input id="voiceTextInput" placeholder="z.B. buche 5 von Teil 123 ein">
+      <button id="voiceSendBtn">Senden</button>
+    </div>
+    <div class="voice-examples">
+      <button data-voice-example="Suche ESP32">Suche ESP32</button>
+      <button data-voice-example="Leuchte Widerstand 10k">Leuchte Widerstand 10k</button>
+      <button data-voice-example="Bestand von Teil 123">Bestand Teil 123</button>
+      <button data-voice-example="Buche 5 von Teil 123 ein">+5 Teil 123</button>
+      <button data-voice-example="Nimm 2 von Teil 123 raus">-2 Teil 123</button>
+      <button data-voice-example="Licht aus">Licht aus</button>
+    </div>
+  `;
+  $("voiceListenBtn").onclick = () => toggleVoiceListening();
+  $("voiceSendBtn").onclick = () => sendVoiceCommand($("voiceTextInput").value).catch((error) => showVoiceError(error.message));
+  $("voiceTextInput").onkeydown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      sendVoiceCommand(event.currentTarget.value).catch((error) => showVoiceError(error.message));
+    }
+  };
+  root.querySelectorAll("[data-voice-example]").forEach((button) => {
+    button.onclick = () => {
+      $("voiceTextInput").value = button.dataset.voiceExample;
+      sendVoiceCommand(button.dataset.voiceExample).catch((error) => showVoiceError(error.message));
+    };
+  });
+}
+
+function toggleVoiceListening() {
+  if (state.voiceListening) {
+    stopVoiceListening();
+  } else {
+    startVoiceListening();
+  }
+}
+
+function startVoiceListening() {
+  const Recognition = voiceRecognitionClass();
+  if (!Recognition) {
+    showVoiceError("Spracherkennung wird von diesem Browser nicht unterstützt.");
+    return;
+  }
+  stopVoiceListening();
+  const recognition = new Recognition();
+  recognition.lang = "de-DE";
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.onstart = () => {
+    state.voiceListening = true;
+    state.voiceTranscript = "Ich höre...";
+    renderVoicePanel();
+  };
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (const result of event.results) {
+      transcript += result[0].transcript;
+    }
+    state.voiceTranscript = transcript.trim();
+    if (event.results[event.results.length - 1].isFinal) {
+      sendVoiceCommand(state.voiceTranscript).catch((error) => showVoiceError(error.message));
+    } else {
+      renderVoicePanel();
+    }
+  };
+  recognition.onerror = (event) => {
+    showVoiceError(event.error === "not-allowed" ? "Mikrofon wurde blockiert. Prüfe Browserrechte oder HTTPS." : `Sprachfehler: ${event.error}`);
+  };
+  recognition.onend = () => {
+    state.voiceListening = false;
+    state.voiceRecognition = null;
+    renderVoicePanel();
+  };
+  state.voiceRecognition = recognition;
+  recognition.start();
+}
+
+function stopVoiceListening() {
+  if (state.voiceRecognition) {
+    state.voiceRecognition.stop();
+  }
+  state.voiceRecognition = null;
+  state.voiceListening = false;
+}
+
+async function sendVoiceCommand(text) {
+  const spoken = String(text || "").trim();
+  if (!spoken) return;
+  state.voiceTranscript = spoken;
+  state.voiceReply = "arbeite...";
+  state.voiceCommand = "";
+  renderVoicePanel();
+  const result = await api("/api/voice/command", {
+    method: "POST",
+    body: JSON.stringify({ text: spoken }),
+  });
+  state.voiceReply = result.reply || "Fertig.";
+  state.voiceCommand = result.command || "";
+  beep(result.ok ? "success" : "error");
+  speak(state.voiceReply);
+  toast(state.voiceReply);
+  await refreshAfterVoiceCommand(result.command || "");
+  renderVoicePanel();
+}
+
+async function refreshAfterVoiceCommand(command) {
+  if (/^\/(add|remove|wishlist|assign|zuordnen|plus|minus)/.test(command)) {
+    state.assignments = await api("/api/assignments").catch(() => state.assignments);
+    state.stockEvents = await api("/api/stock/events?limit=20").catch(() => state.stockEvents);
+    renderAssignments();
+    renderBarcodePanel();
+  }
+  if (/^\/(find|leuchten|fach|drawer|off)/.test(command)) {
+    await checkHealth();
+  }
+}
+
+function showVoiceError(message) {
+  state.voiceReply = message;
+  beep("error");
+  toast(message);
+  renderVoicePanel();
+}
+
+function speak(text) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(String(text || "").replace(/\n/g, ". "));
+    utterance.lang = "de-DE";
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    // Speech output is optional.
+  }
 }
 
 function printUrl(mode) {
@@ -392,12 +567,16 @@ async function saveSettings() {
       barcode_camera_enabled: $("settingCameraEnabled").checked,
       partdb_stock_write_enabled: $("settingStockWriteEnabled").checked,
       zvt_enabled: $("settingZvtEnabled").checked,
+      assistant_ai_enabled: $("settingAssistantAiEnabled").checked,
+      assistant_ai_url: $("settingAssistantAiUrl").value,
+      assistant_ai_model: $("settingAssistantAiModel").value,
     }),
   });
   toast("Einstellungen gespeichert.");
   await checkHealth();
   renderSettingsPanel();
   renderBarcodePanel();
+  renderVoicePanel();
 }
 
 async function testPartdbStock() {

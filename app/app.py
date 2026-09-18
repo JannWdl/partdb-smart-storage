@@ -39,6 +39,9 @@ ENV_DEFAULTS = {
     "zvt_port": int(os.environ.get("ZVT_PORT", "20007")),
     "zvt_registration_command": os.environ.get("ZVT_REGISTRATION_COMMAND", "06 00"),
     "zvt_display_input_command": os.environ.get("ZVT_DISPLAY_INPUT_COMMAND", "06 E1"),
+    "assistant_ai_enabled": os.environ.get("ASSISTANT_AI_ENABLED", "false").lower() in ("1", "true", "yes", "on"),
+    "assistant_ai_url": os.environ.get("ASSISTANT_AI_URL", "").rstrip("/"),
+    "assistant_ai_model": os.environ.get("ASSISTANT_AI_MODEL", "llama3.2:3b"),
 }
 
 DEFAULT_COLORS = {
@@ -207,6 +210,9 @@ def settings():
     result["zvt_enabled"] = bool(result["zvt_enabled"])
     result["zvt_host"] = str(result["zvt_host"] or "192.168.178.44").strip()
     result["zvt_port"] = int(result["zvt_port"] or 20007)
+    result["assistant_ai_enabled"] = bool(result.get("assistant_ai_enabled"))
+    result["assistant_ai_url"] = str(result.get("assistant_ai_url") or "").rstrip("/")
+    result["assistant_ai_model"] = str(result.get("assistant_ai_model") or "llama3.2:3b")
     result["partdb_api_token_configured"] = bool(result.get("partdb_api_token"))
     return result
 
@@ -227,10 +233,12 @@ def save_settings(payload):
                 value = max(5, min(300, int(value or 30)))
             if key == "zvt_port":
                 value = max(1, min(65535, int(value or 20007)))
-            if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled", "zvt_enabled"):
+            if key in ("barcode_enabled", "barcode_camera_enabled", "partdb_stock_write_enabled", "zvt_enabled", "assistant_ai_enabled"):
                 value = bool(value)
-            if key in ("zvt_host", "zvt_registration_command", "zvt_display_input_command"):
+            if key in ("zvt_host", "zvt_registration_command", "zvt_display_input_command", "assistant_ai_url", "assistant_ai_model"):
                 value = str(value).strip()
+            if key == "assistant_ai_url":
+                value = str(value).strip().rstrip("/")
             con.execute(
                 """
                 insert into settings (key, value, updated_at)
@@ -1043,6 +1051,153 @@ def telegram_command(text):
             lines.append(f"{sign} {event['quantity']}x {event.get('part_name') or event.get('partdb_part_id') or 'unbekannt'} ({event['status']})")
         return {"ok": True, "reply": "Letzte Buchungen:\n" + "\n".join(lines)}
     return {"ok": False, "reply": f"Unbekannter Befehl: {command}\n\n{telegram_help_text()}"}
+
+
+GERMAN_NUMBER_WORDS = {
+    "ein": 1,
+    "eine": 1,
+    "einen": 1,
+    "eins": 1,
+    "zwei": 2,
+    "drei": 3,
+    "vier": 4,
+    "fünf": 5,
+    "fuenf": 5,
+    "sechs": 6,
+    "sieben": 7,
+    "acht": 8,
+    "neun": 9,
+    "zehn": 10,
+    "elf": 11,
+    "zwölf": 12,
+    "zwoelf": 12,
+    "zwanzig": 20,
+}
+
+
+def voice_quantity(text):
+    words = re.findall(r"[a-zäöüß0-9]+", str(text or "").lower())
+    for word in words:
+        if word.isdigit():
+            return max(1, int(word))
+        if word in GERMAN_NUMBER_WORDS:
+            return GERMAN_NUMBER_WORDS[word]
+    return 1
+
+
+def voice_quantity_uses_digit(text):
+    words = re.findall(r"[a-zäöüß0-9]+", str(text or "").lower())
+    for word in words:
+        if word.isdigit():
+            return True
+        if word in GERMAN_NUMBER_WORDS:
+            return False
+    return False
+
+
+def voice_term(text, remove_digit_quantity=False):
+    cleaned = str(text or "").strip()
+    cleaned = re.sub(r"\b(bit­te|bitte|stück|stueck|teile|teil|bestand|lager|von|vom|den|der|die|das)\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(buche|buchen|einbuchen|einlagern|rein|raus|ausbuchen|entnehmen|senken|erhöhen|erhoehen|leuchten|zeige|zeig|finde|such|suche|nachkauf|wunschliste|markieren|markiere)\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(" + "|".join(map(re.escape, GERMAN_NUMBER_WORDS.keys())) + r")\b", " ", cleaned, flags=re.IGNORECASE)
+    if remove_digit_quantity:
+        cleaned = re.sub(r"\b\d+\b", " ", cleaned, count=1)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def assistant_ai_interpret(text):
+    cfg = settings()
+    if not cfg["assistant_ai_enabled"] or not cfg["assistant_ai_url"]:
+        return None
+    system = (
+        "Du bist der deutsche Sprachassistent für ein Kleinteilelager. "
+        "Antworte ausschließlich als JSON mit den Feldern command und reply. "
+        "command ist leer für Smalltalk oder eine dieser Aktionen: "
+        "/status, /events, /off, /suche <text>, /find <text>, /stock <teil-id>, "
+        "/inventory, /add <teil-id oder name> <menge>, /remove <teil-id oder name> <menge>, "
+        "/wishlist <teil-id oder name>, /fach <fach-id>. "
+        "Wenn der Benutzer Bestand ändern will, nutze /add oder /remove. "
+        "Wenn er ein Fach sehen will, nutze /find oder /fach. "
+        "Wenn Angaben fehlen, lasse command leer und stelle eine kurze Rückfrage in reply."
+    )
+    try:
+        response = requests.post(
+            f"{cfg['assistant_ai_url']}/api/chat",
+            json={
+                "model": cfg["assistant_ai_model"],
+                "stream": False,
+                "format": "json",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": str(text or "")},
+                ],
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        content = response.json().get("message", {}).get("content", "{}")
+        parsed = json.loads(content)
+        command = str(parsed.get("command") or "").strip()
+        reply = str(parsed.get("reply") or "").strip()
+        if command and not command.startswith("/"):
+            command = ""
+        return {"command": command, "reply": reply, "ai": True}
+    except Exception as exc:
+        return {"command": "", "reply": f"Lokale KI ist nicht erreichbar, nutze Regelmodus. ({exc})", "ai": False}
+
+
+def voice_to_telegram_command(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return "/help"
+    lower = raw.lower()
+    if raw.startswith("/"):
+        return raw
+    if any(word in lower for word in ("licht aus", "led aus", "alles aus", "ausschalten")):
+        return "/off"
+    if any(word in lower for word in ("status", "gesundheit")):
+        return "/status"
+    if any(word in lower for word in ("letzte buch", "verlauf", "ereignis")):
+        return "/events"
+    quantity = voice_quantity(lower)
+    if any(word in lower for word in ("buche", "buchen", "einlagern", "einbuchen", "rein", "erhöhe", "erhoehe", "plus", "zugang")):
+        term = voice_term(raw, remove_digit_quantity=voice_quantity_uses_digit(lower))
+        return f"/add {term} {quantity}".strip()
+    if any(word in lower for word in ("entnehmen", "ausbuchen", "raus", "senke", "minus", "abgang")):
+        term = voice_term(raw, remove_digit_quantity=voice_quantity_uses_digit(lower))
+        return f"/remove {term} {quantity}".strip()
+    if any(word in lower for word in ("bestand", "wie viel", "wieviel", "lagerstand")):
+        term = voice_term(raw)
+        return f"/stock {term}".strip()
+    if any(word in lower for word in ("leuchte", "leuchten", "zeige", "zeig", "finde")):
+        term = voice_term(raw)
+        return f"/find {term}".strip()
+    if any(word in lower for word in ("nachkauf", "wunschliste", "nachbestellen")):
+        term = voice_term(raw)
+        return f"/wishlist {term}".strip()
+    if any(word in lower for word in ("suche", "such")):
+        term = voice_term(raw)
+        return f"/suche {term}".strip()
+    return f"/suche {raw}"
+
+
+@app.post("/api/voice/command")
+def api_voice_command(data: dict = Body(...)):
+    text = str(data.get("text") or "").strip()
+    ai_result = assistant_ai_interpret(text)
+    if ai_result and ai_result.get("ai") and not ai_result.get("command"):
+        return {"ok": True, "reply": ai_result.get("reply") or "Ich bin bereit.", "command": "", "text": text, "ai": True}
+    if ai_result and ai_result.get("command"):
+        result = telegram_command(ai_result["command"])
+        reply = result.get("reply") or ai_result.get("reply") or "Fertig."
+        if ai_result.get("reply") and result.get("ok") is False:
+            reply = f"{ai_result['reply']}\n{reply}"
+        return {**result, "reply": reply, "command": ai_result["command"], "text": text, "ai": True}
+    command = voice_to_telegram_command(text)
+    result = telegram_command(command)
+    if ai_result and ai_result.get("reply") and result.get("ok"):
+        result["reply"] = f"{result['reply']}\n{ai_result['reply']}"
+    return {**result, "command": command, "text": text, "ai": False}
 
 
 def handle_action(action, code):
