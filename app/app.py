@@ -432,6 +432,23 @@ def write_partdb_stock(part_id, action, quantity=1):
     }
 
 
+def partdb_stock_error_message(exc, part_id=None, part_name=None):
+    raw = str(exc)
+    label = part_name or (f"Teil {entity_id(part_id)}" if part_id else "dieses Teil")
+    if "Kein Part-DB-Lagerlos" in raw:
+        return (
+            f"Part-DB hat für {label} noch keinen Bestandseintrag. "
+            "Öffne das Teil in Part-DB und lege einmal einen Bestand bzw. ein Lagerlos an. "
+            "Danach kann Smart Storage per Sprache, Barcode, Telegram und ZVT buchen."
+        )
+    if "enthält keinen lesbaren Bestand" in raw:
+        return (
+            f"Der Bestand von {label} konnte in Part-DB nicht gelesen werden. "
+            "Prüfe das Lagerlos bzw. den Bestandseintrag in Part-DB."
+        )
+    return f"Part-DB Buchung fehlgeschlagen: {raw}"
+
+
 def normalize(text):
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
@@ -880,7 +897,7 @@ def direct_stock_action(action, term, quantity=1):
     try:
         partdb_result = write_partdb_stock(part_id, action, quantity)
     except Exception as exc:
-        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        message = partdb_stock_error_message(exc, part_id, part_name)
         record_stock_event(event_type, part_id, part_name, drawer_id, quantity, action, message, status="failed", sync_error=str(exc))
         return {"ok": False, "status": "failed", "event_type": event_type, "assignment": assignment, **feedback("error", message, slot)}
     message = {
@@ -1224,7 +1241,7 @@ def handle_action(action, code):
     try:
         partdb_result = write_partdb_stock(part_id, action, 1)
     except Exception as exc:
-        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        message = partdb_stock_error_message(exc, part_id, session.get("part_name"))
         record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, 1, code, message, status="failed", sync_error=str(exc))
         return {"ok": False, "event_type": event_type, "session": session, "status": "failed", **feedback("error", message, slot)}
     message = {"ADD": "Zugang in Part-DB gebucht.", "REMOVE": "Abgang in Part-DB gebucht."}[action]
@@ -1322,7 +1339,7 @@ def handle_stock_quantity(action, quantity, code="ZVT", expected_session=None):
     try:
         partdb_result = write_partdb_stock(part_id, action, quantity)
     except Exception as exc:
-        message = f"Part-DB Buchung fehlgeschlagen: {exc}"
+        message = partdb_stock_error_message(exc, part_id, session.get("part_name"))
         record_stock_event(event_type, part_id, session.get("part_name"), drawer_id, quantity, code, message, status="failed", sync_error=str(exc))
         return {"ok": False, "event_type": event_type, "session": session, "status": "failed", **feedback("error", message, slot)}
     message = {

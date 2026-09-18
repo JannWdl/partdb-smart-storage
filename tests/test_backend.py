@@ -192,6 +192,23 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(events[0]["status"], "failed")
         self.assertIn("kein Token", events[0]["sync_error"])
 
+    def test_stock_error_explains_missing_part_lot(self):
+        backend = self.load_app_module()
+        message = backend.partdb_stock_error_message(RuntimeError("Kein Part-DB-Lagerlos für dieses Teil gefunden."), "123", "Relais")
+        self.assertIn("Relais", message)
+        self.assertIn("Bestandseintrag", message)
+        self.assertIn("Lagerlos", message)
+
+    def test_voice_add_reports_missing_part_lot_clearly(self):
+        backend = self.load_app_module()
+        with patch.object(backend, "call_wled", return_value={"ok": True}):
+            backend.api_assign({"part_id": "123", "part_name": "Relais", "drawer_id": "1"})
+        with patch.object(backend, "call_wled", return_value={"ok": True}), patch.object(backend, "write_partdb_stock", side_effect=RuntimeError("Kein Part-DB-Lagerlos für dieses Teil gefunden.")):
+            result = backend.api_voice_command({"text": "buche 3 von Relais"})
+        self.assertFalse(result["ok"])
+        self.assertIn("Bestandseintrag", result["reply"])
+        self.assertIn("Relais", result["reply"])
+
     def test_zvt_frames_use_registration_and_display_input_only(self):
         backend = self.load_app_module()
         self.assertEqual(backend.zvt_registration_frame(), bytes.fromhex("06 00 06 00 00 00 00 09 78"))

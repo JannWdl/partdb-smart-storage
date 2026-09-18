@@ -387,7 +387,7 @@ function renderVoicePanel() {
         <b>${state.voiceReply || "bereit"}</b>
       </div>
     </div>
-    ${supported ? "" : `<p class="meta voice-warning">Dieser Browser unterstützt Web Speech Recognition nicht. Du kannst unten trotzdem tippen und dir die Antwort vorlesen lassen.</p>`}
+    ${supported ? "" : `<p class="meta voice-warning">Dieser Browser unterstützt keine Mikrofon-Spracherkennung. Nutze auf Android am besten Chrome/Edge und auf iPhone Safari, möglichst über HTTPS. Tippen und Vorlesen funktioniert weiterhin.</p>`}
     <div class="form-grid voice-line">
       <input id="voiceTextInput" placeholder="z.B. buche 5 von Teil 123 ein">
       <button id="voiceSendBtn">Senden</button>
