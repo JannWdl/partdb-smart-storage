@@ -631,6 +631,29 @@ button.danger {
   color: var(--red);
 }
 
+.voice-settings {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  background: rgba(36, 42, 50, .5);
+}
+
+.voice-settings label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.voice-settings select,
+.voice-settings input[type="range"],
+.voice-settings button {
+  width: 100%;
+}
+
 @keyframes voicePulse {
   0%, 100% { filter: none; }
   50% { filter: drop-shadow(0 0 12px rgba(255, 208, 90, .35)); }

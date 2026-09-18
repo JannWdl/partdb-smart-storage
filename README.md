@@ -228,6 +228,8 @@ Licht aus
 
 Die Antwort wird im Browser angezeigt und per Sprachausgabe vorgelesen. Auf Android/iOS kann Mikrofonzugriff je nach Browser HTTPS benötigen. Wenn das Mikrofon blockiert wird, funktioniert die Texteingabe im Sprach-Tab weiterhin.
 
+Im Sprach-Tab kann die Browser-Stimme ausgewählt werden. Die Auswahl wird lokal auf dem Handy gespeichert. Gute Stimmen hängen vom Gerät ab: iOS nutzt installierte Siri-/Systemstimmen, Android/Chrome oft Google- oder Samsung-Stimmen. Über `Stimme testen` kann die Ausgabe direkt verglichen werden.
+
 Standardmäßig nutzt der Sprachassistent einen robusten Regelmodus. Für freiere Unterhaltung kann in den Einstellungen eine lokale KI aktiviert werden, zum Beispiel Ollama:
 
 ```text

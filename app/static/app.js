@@ -24,6 +24,11 @@ let state = {
   voiceTranscript: "",
   voiceReply: "",
   voiceCommand: "",
+  speechVoices: [],
+  speechVoiceName: "",
+  speechRate: 0.95,
+  speechPitch: 1.02,
+  speechEnabled: true,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -290,13 +295,81 @@ function voiceRecognitionClass() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
+function loadSpeechPrefs() {
+  try {
+    state.speechVoiceName = localStorage.getItem("smart-storage-speech-voice") || "";
+    state.speechRate = Number(localStorage.getItem("smart-storage-speech-rate") || 0.95);
+    state.speechPitch = Number(localStorage.getItem("smart-storage-speech-pitch") || 1.02);
+    state.speechEnabled = localStorage.getItem("smart-storage-speech-enabled") !== "0";
+  } catch {
+    // Defaults are good enough if storage is blocked.
+  }
+}
+
+function saveSpeechPrefs() {
+  try {
+    localStorage.setItem("smart-storage-speech-voice", state.speechVoiceName || "");
+    localStorage.setItem("smart-storage-speech-rate", String(state.speechRate));
+    localStorage.setItem("smart-storage-speech-pitch", String(state.speechPitch));
+    localStorage.setItem("smart-storage-speech-enabled", state.speechEnabled ? "1" : "0");
+  } catch {
+    // Speech settings are local browser comfort settings.
+  }
+}
+
+function refreshSpeechVoices() {
+  if (!("speechSynthesis" in window)) return;
+  state.speechVoices = window.speechSynthesis.getVoices();
+  if (!state.speechVoiceName && state.speechVoices.length) {
+    const preferred = bestGermanVoice();
+    state.speechVoiceName = preferred?.name || "";
+  }
+}
+
+function bestGermanVoice() {
+  const voices = state.speechVoices || [];
+  const german = voices.filter((voice) => /^de([-_]|$)/i.test(voice.lang || ""));
+  const rank = (voice) => {
+    const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+    if (name.includes("google deutsch")) return 100;
+    if (name.includes("microsoft katja") || name.includes("microsoft conrad")) return 95;
+    if (name.includes("anna") || name.includes("markus")) return 90;
+    if (name.includes("premium") || name.includes("enhanced")) return 85;
+    if (voice.localService) return 75;
+    return 50;
+  };
+  return german.sort((a, b) => rank(b) - rank(a))[0] || voices[0] || null;
+}
+
+function selectedSpeechVoice() {
+  return state.speechVoices.find((voice) => voice.name === state.speechVoiceName) || bestGermanVoice();
+}
+
 function renderVoicePanel() {
   const root = $("voicePanel");
   const supported = Boolean(voiceRecognitionClass());
   const aiActive = Boolean(state.settings?.assistant_ai_enabled && state.settings?.assistant_ai_url);
+  refreshSpeechVoices();
+  const voiceOptions = (state.speechVoices || []).map((voice) => {
+    const label = `${voice.name} · ${voice.lang}${voice.localService ? " · lokal" : ""}`;
+    return `<option value="${voice.name}" ${voice.name === state.speechVoiceName ? "selected" : ""}>${label}</option>`;
+  }).join("");
   root.innerHTML = `
     <p class="meta">Sprich Lagerbefehle direkt im Browser. Auf iPhone und Android kann das Mikrofon je nach Browser HTTPS benötigen.</p>
     <p class="meta">${aiActive ? `Freie KI-Unterhaltung ist aktiv: ${state.settings.assistant_ai_model}.` : "Regelmodus aktiv. Für freie KI-Unterhaltung in den Einstellungen Ollama/KI-URL eintragen und aktivieren."}</p>
+    <div class="voice-settings">
+      <label>Stimme
+        <select id="voiceSelect">${voiceOptions || `<option value="">Systemstimme</option>`}</select>
+      </label>
+      <label>Tempo
+        <input id="voiceRate" type="range" min="0.75" max="1.2" step="0.05" value="${state.speechRate}">
+      </label>
+      <label>Tonhöhe
+        <input id="voicePitch" type="range" min="0.8" max="1.25" step="0.05" value="${state.speechPitch}">
+      </label>
+      <label class="checkline"><input id="voiceEnabled" type="checkbox" ${state.speechEnabled ? "checked" : ""}> Antwort vorlesen</label>
+      <button id="voiceTestBtn">Stimme testen</button>
+    </div>
     <div class="voice-card ${state.voiceListening ? "listening" : ""}">
       <button id="voiceListenBtn" class="voice-mic ${state.voiceListening ? "danger" : "primary"}" ${supported ? "" : "disabled"}>
         ${state.voiceListening ? "Zuhören stoppen" : "Sprechen"}
@@ -328,6 +401,23 @@ function renderVoicePanel() {
       <button data-voice-example="Licht aus">Licht aus</button>
     </div>
   `;
+  $("voiceSelect").onchange = (event) => {
+    state.speechVoiceName = event.currentTarget.value;
+    saveSpeechPrefs();
+  };
+  $("voiceRate").oninput = (event) => {
+    state.speechRate = Number(event.currentTarget.value || 0.95);
+    saveSpeechPrefs();
+  };
+  $("voicePitch").oninput = (event) => {
+    state.speechPitch = Number(event.currentTarget.value || 1.02);
+    saveSpeechPrefs();
+  };
+  $("voiceEnabled").onchange = (event) => {
+    state.speechEnabled = event.currentTarget.checked;
+    saveSpeechPrefs();
+  };
+  $("voiceTestBtn").onclick = () => speak("Hallo, ich bin dein Smart Storage Sprachassistent.");
   $("voiceListenBtn").onclick = () => toggleVoiceListening();
   $("voiceSendBtn").onclick = () => sendVoiceCommand($("voiceTextInput").value).catch((error) => showVoiceError(error.message));
   $("voiceTextInput").onkeydown = (event) => {
@@ -441,11 +531,18 @@ function showVoiceError(message) {
 
 function speak(text) {
   try {
-    if (!("speechSynthesis" in window)) return;
+    if (!state.speechEnabled || !("speechSynthesis" in window)) return;
+    refreshSpeechVoices();
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(String(text || "").replace(/\n/g, ". "));
     utterance.lang = "de-DE";
-    utterance.rate = 1;
+    const voice = selectedSpeechVoice();
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang || "de-DE";
+    }
+    utterance.rate = state.speechRate || 0.95;
+    utterance.pitch = state.speechPitch || 1.02;
     window.speechSynthesis.speak(utterance);
   } catch {
     // Speech output is optional.
@@ -1118,6 +1215,14 @@ $("assignBtn").onclick = () => assignSelected().catch((error) => toast(error.mes
 $("findBtn").onclick = () => findAssignment().catch((error) => toast(error.message));
 $("offBtn").onclick = () => api("/api/wled/off", { method: "POST" }).then(() => toast("LEDs aus."));
 document.addEventListener("keydown", handleScannerKeyboard);
+loadSpeechPrefs();
+refreshSpeechVoices();
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    refreshSpeechVoices();
+    if (state.activePanel === "voiceSection") renderVoicePanel();
+  };
+}
 async function saveDraftLayout() {
   updateDraftFromInputs();
   await api("/api/layout", { method: "PUT", body: JSON.stringify({ layout: state.draftLayout }) });
